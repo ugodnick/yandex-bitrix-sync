@@ -1,0 +1,646 @@
+import { YandexFleetService } from '../yandex-fleet/yandex-fleet.service';
+import { YandexFleetProfileService } from '../yandex-fleet/yandex-fleet-profile/yandex-fleet-profile.service';
+import { YandexFleetWorkRuleService } from '../yandex-fleet/yandex-fleet-work-rule/yandex-fleet-work-rules.service';
+
+import {
+  buildError,
+  calculateDriverHash,
+  formatDateForYandex,
+  formatPhoneNumber,
+  mapBitrixAmenitiesToYandex,
+  mapBitrixColorToYandex,
+  mapBitrixCountryToYandex,
+  mapBitrixEmploymentTypeToYandex,
+  mapBitrixFuelTypeToYandex,
+  mapBitrixOwnershipTypeToYandex,
+  mapBitrixTaxSystemToYandex,
+  mapBitrixTransmissionToYandex,
+  mapBitrixVacancyToYandexProfession,
+  mapEmployment,
+  normalizeBitrixValue,
+  ufValueToBool,
+} from './bitrix.utils';
+import {
+  EmploymentType,
+  YandexDriverProfessionType,
+  YandexFleetCreateContractorProfile,
+  YandexFleetCreateWalkCourier,
+  YandexFleetCreateWalkSECourier,
+  YandexFleetDriverProfile,
+  YandexFleetUpdateCarRequest,
+  YandexFleetVehicleData,
+} from '../yandex-fleet/yandex-fleet.type';
+import {
+  BITRIX_DICT,
+  BITRIX_FIELDS,
+  BITRIX_TO_YANDEX_PARK,
+  BitrixContactFields,
+  BitrixCrmWebhookBody,
+  BitrixDealFields,
+} from './bitrix.type';
+import { BitrixService } from './bitrix.service';
+
+export class BitrixWebhookService {
+  constructor(
+    private yandexFleetService: YandexFleetService,
+    private yandexFleetProfileService: YandexFleetProfileService,
+    private yandexFleetWorkRuleService: YandexFleetWorkRuleService,
+    private bitrixService: BitrixService,
+  ) {}
+
+  async handleInboundWebhook(webhookBody: BitrixCrmWebhookBody): Promise<void> {
+    const { event, data } = webhookBody;
+    const entityId = data?.FIELDS?.ID;
+    console.log('event', webhookBody.event);
+    if (!entityId) return;
+
+    try {
+      if (event === 'ONCRMCONTACTUPDATE') {
+        await this.syncContactToYandex(entityId);
+      } else if (event === 'ONCRMDEALUPDATE' || event === 'ONCRMDEALADD') {
+        await this.syncDealToYandex(entityId);
+      }
+    } catch (error) {
+      throw buildError(error, BitrixWebhookService.name);
+    }
+  }
+
+  private async syncDealToYandex(dealId: string): Promise<void> {
+    const deal = await this.bitrixService.getDeal(dealId);
+
+    const contactId = deal.CONTACT_ID;
+    if (!contactId) return;
+
+    const dispatcherId = String(deal[BITRIX_FIELDS.DISPATCHER]);
+    const targetYandexParkId = BITRIX_TO_YANDEX_PARK[dispatcherId];
+    if (!targetYandexParkId) return;
+
+    const contactData = await this.bitrixService.getContact(String(contactId));
+    const phone = formatPhoneNumber(contactData.PHONE?.[0]?.VALUE);
+    if (!phone) return;
+
+    let yandexProfileId: string | null = (deal[BITRIX_FIELDS.PROFILE_ID] as string) || null;
+
+    if (!yandexProfileId) {
+      console.log(1);
+      if (!this.canCreateYandexProfile(contactData, deal)) {
+        console.log(
+          `[BitrixService] Недостаточно данных для создания водителя. Deal ${dealId}, Contact ${contactId}`,
+        );
+        return;
+      }
+
+      const ruleId = await this.yandexFleetWorkRuleService.getDefaultWorkRule(targetYandexParkId);
+
+      const creationPayload = this.buildYandexProfileCreationPayload(deal, contactData, ruleId);
+
+      if (
+        creationPayload.profession === YandexDriverProfessionType.CargoCourierOnFoot &&
+        creationPayload.employment.type === EmploymentType.ParkEmployee
+      ) {
+        yandexProfileId = await this.yandexFleetService.createWalkCourier(
+          targetYandexParkId,
+          this.buildYandexWalkCourierCreationPayload(creationPayload),
+        );
+      } else if (
+        creationPayload.profession === YandexDriverProfessionType.CargoCourierOnFoot &&
+        creationPayload.employment.type === EmploymentType.SelfEmployed
+      ) {
+        yandexProfileId = await this.yandexFleetService.createWalkSECourier(
+          targetYandexParkId,
+          this.buildYandexWalkCourierSECreationPayload(creationPayload),
+        );
+      } else {
+        if (this.canCreateYandexCar(deal)) {
+          const carCreatePayload = this.buildYandexCarCreatePayload(deal);
+
+          if (carCreatePayload) {
+            creationPayload.contractor.car_id = await this.yandexFleetService.createCar(
+              targetYandexParkId,
+              carCreatePayload,
+            );
+          }
+        }
+        yandexProfileId = await this.yandexFleetService.createProfile(
+          targetYandexParkId,
+          creationPayload,
+        );
+      }
+    } else {
+      const currentProfile = await this.yandexFleetService.getProfile(
+        targetYandexParkId,
+        yandexProfileId,
+      );
+
+      const updatedProfile = this.buildYandexProfileUpdatePayload(
+        currentProfile,
+        deal,
+        contactData,
+      );
+
+      if (currentProfile.car_id) {
+        const car = await this.yandexFleetService.getCar(targetYandexParkId, currentProfile.car_id);
+        const updatedCar = this.buildYandexCarUpdatePayload(car, deal);
+
+        if (updatedCar) {
+          await this.yandexFleetService.updateCar(
+            targetYandexParkId,
+            currentProfile.car_id,
+            updatedCar,
+          );
+        }
+      }
+
+      if (JSON.stringify(currentProfile) !== JSON.stringify(updatedProfile)) {
+        await this.yandexFleetService.updateProfile(
+          targetYandexParkId,
+          yandexProfileId,
+          updatedProfile,
+        );
+      }
+    }
+
+    if (deal[BITRIX_FIELDS.PROFILE_ID] !== yandexProfileId) {
+      await this.bitrixService.updateDeal(dealId, {
+        [BITRIX_FIELDS.PROFILE_ID]: yandexProfileId,
+      });
+    }
+
+    await this.saveLocalState(
+      yandexProfileId!,
+      targetYandexParkId,
+      contactId,
+      dealId,
+      deal,
+      contactData,
+    );
+  }
+
+  private async syncContactToYandex(contactId: string): Promise<void> {
+    const contactData = await this.bitrixService.getContact(contactId);
+    const phone = formatPhoneNumber(contactData.PHONE?.[0]?.VALUE);
+    if (!phone) return;
+
+    const latestDeal = await this.bitrixService.getLatestDealByContact(contactId);
+    if (!latestDeal) return;
+
+    const yandexProfileId = (latestDeal[BITRIX_FIELDS.PROFILE_ID] as string) || null;
+    if (!yandexProfileId) return;
+
+    const dispatcherId = String(latestDeal[BITRIX_FIELDS.DISPATCHER]);
+    const targetYandexParkId = BITRIX_TO_YANDEX_PARK[dispatcherId];
+    if (!targetYandexParkId) return;
+
+    const currentProfile = await this.yandexFleetService.getProfile(
+      targetYandexParkId,
+      yandexProfileId,
+    );
+
+    const updatedProfile = this.buildYandexProfileUpdatePayload(
+      currentProfile,
+      latestDeal,
+      contactData,
+    );
+
+    if (JSON.stringify(currentProfile) !== JSON.stringify(updatedProfile)) {
+      await this.yandexFleetService.updateProfile(
+        targetYandexParkId,
+        yandexProfileId,
+        updatedProfile,
+      );
+
+      await this.saveLocalState(
+        yandexProfileId,
+        targetYandexParkId,
+        contactId,
+        latestDeal.ID!,
+        latestDeal,
+        contactData,
+      );
+    }
+  }
+
+  private canCreateYandexProfile(contact: BitrixContactFields, deal: BitrixDealFields): boolean {
+    const phone = contact.PHONE?.[0]?.VALUE;
+    const firstName = contact.NAME;
+    const lastName = contact.LAST_NAME;
+    const birthDate = contact.BIRTHDATE;
+
+    const dlExperienceSince = deal[BITRIX_FIELDS.DRIVING_EXPERIENCE];
+    const hireDate = deal[BITRIX_FIELDS.HIRE_DATE];
+    const vacancy = deal[BITRIX_FIELDS.VACANCY];
+    const employmentType = deal[BITRIX_FIELDS.EMPLOYMENT_TYPE];
+    const address = deal[BITRIX_FIELDS.ADDRESS_DISP];
+
+    return !!(
+      phone &&
+      firstName &&
+      lastName &&
+      birthDate &&
+      dlExperienceSince &&
+      hireDate &&
+      vacancy &&
+      employmentType &&
+      address
+    );
+  }
+
+  private canCreateYandexCar(deal: BitrixDealFields): boolean {
+    const brand = deal[BITRIX_FIELDS.BRAND];
+    const model = deal[BITRIX_FIELDS.MODEL];
+    const year = deal[BITRIX_FIELDS.YEAR];
+    const color = deal[BITRIX_FIELDS.COLOR];
+    const transmission = deal[BITRIX_FIELDS.TRANSMISSION];
+    const fuelType = deal[BITRIX_FIELDS.FUEL_TYPE];
+    const vin = deal[BITRIX_FIELDS.VIN];
+    const licensePlate = deal[BITRIX_FIELDS.LICENSE_PLATE];
+
+    return !!(brand && model && year && color && transmission && fuelType && vin && licensePlate);
+  }
+
+  private buildYandexProfileCreationPayload(
+    deal: BitrixDealFields,
+    contact: BitrixContactFields,
+    workId: string,
+  ): YandexFleetCreateContractorProfile {
+    const n = normalizeBitrixValue;
+
+    const phone = formatPhoneNumber(contact.PHONE?.[0]?.VALUE) || '';
+
+    return {
+      contractor: {
+        account: {
+          balance_limit: String(deal[BITRIX_FIELDS.BALANCE_LIMIT]) || '-1',
+          work_rule_id: workId,
+          block_orders_on_balance_below_limit: true,
+        },
+        person: {
+          full_name: {
+            first_name: contact.NAME || '',
+            last_name: contact.LAST_NAME || '',
+            middle_name: contact.SECOND_NAME || undefined,
+          },
+          contact_info: {
+            phone,
+            address: String(deal[BITRIX_FIELDS.ADDRESS_DISP]).split('|')[0].trim(),
+          },
+          driver_license: {
+            number: String(n(deal[BITRIX_FIELDS.DL_SERIES_NUMBER])),
+            issue_date:
+              formatDateForYandex(String(n(deal[BITRIX_FIELDS.DL_ISSUE_DATE]))) || '2020-01-01',
+            expiry_date:
+              formatDateForYandex(String(n(deal[BITRIX_FIELDS.DL_EXPIRY_DATE]))) || '2030-01-01',
+            country: mapBitrixCountryToYandex(deal[BITRIX_FIELDS.DL_COUNTRY_ISSUED]),
+            birth_date: formatDateForYandex(contact.BIRTHDATE)!,
+          },
+          driver_license_experience: {
+            total_since_date:
+              formatDateForYandex(String(n(deal[BITRIX_FIELDS.DRIVING_EXPERIENCE]))) ||
+              '2020-01-01',
+          },
+        },
+        profile: {
+          hire_date:
+            formatDateForYandex(String(n(deal[BITRIX_FIELDS.HIRE_DATE]) || '')) ||
+            new Date().toISOString().substring(0, 10),
+        },
+        order_provider: {
+          platform: ufValueToBool(deal[BITRIX_FIELDS.ORDER_PROVIDER_PLATFORM]),
+          partner: ufValueToBool(deal[BITRIX_FIELDS.ORDER_PROVIDER_PARTNER]),
+        },
+      },
+      profession: mapBitrixVacancyToYandexProfession(deal[BITRIX_FIELDS.VACANCY]),
+      employment: mapEmployment(
+        mapBitrixEmploymentTypeToYandex(deal[BITRIX_FIELDS.EMPLOYMENT_TYPE]),
+        mapBitrixTaxSystemToYandex(deal[BITRIX_FIELDS.TAX_SYSTEM_TYPE]),
+        phone,
+      ),
+    };
+  }
+
+  private buildYandexWalkCourierCreationPayload(
+    data: YandexFleetCreateContractorProfile,
+  ): YandexFleetCreateWalkCourier {
+    return {
+      full_name: data.contractor.person.full_name,
+      phone: data.contractor.person.contact_info.phone,
+      birth_date: data.contractor.person.driver_license.birth_date,
+      work_rule_id: data.contractor.account?.work_rule_id,
+    };
+  }
+
+  private buildYandexWalkCourierSECreationPayload(
+    data: YandexFleetCreateContractorProfile,
+  ): YandexFleetCreateWalkSECourier {
+    return {
+      profile: this.buildYandexWalkCourierCreationPayload(data),
+      selfemployed: {
+        address: data.contractor.person.contact_info.address,
+        phone: data.contractor.person.contact_info.phone,
+      },
+    };
+  }
+
+  private buildYandexProfileUpdatePayload(
+    currentProfile: YandexFleetDriverProfile,
+    deal: BitrixDealFields,
+    contact: BitrixContactFields,
+  ): YandexFleetDriverProfile {
+    const n = normalizeBitrixValue;
+
+    const phone = formatPhoneNumber(contact.PHONE?.[0]?.VALUE);
+    const firstName = contact.NAME;
+    const lastName = contact.LAST_NAME;
+    const middleName = contact.SECOND_NAME;
+
+    // const dlExpRaw = n(deal[BITRIX_FIELDS.DRIVING_EXPERIENCE]);
+    // const dlExpDate = dlExpRaw ? formatDateForYandex(String(dlExpRaw)) : undefined;
+
+    const personObj: YandexFleetDriverProfile['person'] = {
+      ...currentProfile.person,
+      full_name: {
+        first_name: firstName || currentProfile.person.full_name.first_name,
+        last_name: lastName || currentProfile.person.full_name.last_name,
+        middle_name: middleName || currentProfile.person.full_name.middle_name,
+      },
+      contact_info: {
+        ...currentProfile.person.contact_info,
+        phone: phone || currentProfile.person.contact_info.phone,
+        ...(n(deal[BITRIX_FIELDS.ADDRESS_DISP]) && {
+          address: String(deal[BITRIX_FIELDS.ADDRESS_DISP]).split('|')[0].trim(),
+        }),
+      },
+      driver_license: {
+        number: n(deal[BITRIX_FIELDS.DL_SERIES_NUMBER])
+          ? String(deal[BITRIX_FIELDS.DL_SERIES_NUMBER])
+          : currentProfile.person.driver_license.number,
+        issue_date: n(deal[BITRIX_FIELDS.DL_ISSUE_DATE])
+          ? formatDateForYandex(String(deal[BITRIX_FIELDS.DL_ISSUE_DATE])) ||
+            currentProfile.person.driver_license.issue_date
+          : currentProfile.person.driver_license.issue_date,
+        expiry_date: n(deal[BITRIX_FIELDS.DL_EXPIRY_DATE])
+          ? formatDateForYandex(String(deal[BITRIX_FIELDS.DL_EXPIRY_DATE])) ||
+            currentProfile.person.driver_license.expiry_date
+          : currentProfile.person.driver_license.expiry_date,
+        country: n(deal[BITRIX_FIELDS.DL_COUNTRY_ISSUED])
+          ? mapBitrixCountryToYandex(deal[BITRIX_FIELDS.DL_COUNTRY_ISSUED]) ||
+            currentProfile.person.driver_license.country
+          : currentProfile.person.driver_license.country,
+        birth_date: contact.BIRTHDATE
+          ? formatDateForYandex(contact.BIRTHDATE) ||
+            currentProfile.person.driver_license.birth_date
+          : currentProfile.person.driver_license.birth_date,
+      },
+      employment_type: mapBitrixEmploymentTypeToYandex(deal[BITRIX_FIELDS.EMPLOYMENT_TYPE]),
+    };
+
+    // if (dlExpDate) {
+    //   personObj.driver_license_experience = { total_since_date: dlExpDate };
+    // } else if (currentProfile.person.driver_license_experience?.total_since_date) {
+    //   personObj.driver_license_experience = currentProfile.person.driver_license_experience;
+    // }
+
+    return {
+      account: {
+        ...currentProfile.account,
+        ...(n(deal[BITRIX_FIELDS.BALANCE_LIMIT]) && {
+          balance_limit: String(deal[BITRIX_FIELDS.BALANCE_LIMIT]),
+        }),
+      },
+      person: personObj,
+      profile: {
+        ...currentProfile.profile,
+        ...(n(deal[BITRIX_FIELDS.HIRE_DATE]) && {
+          hire_date:
+            formatDateForYandex(String(deal[BITRIX_FIELDS.HIRE_DATE])) ||
+            currentProfile.profile.hire_date,
+        }),
+      },
+      car_id: currentProfile.car_id,
+      order_provider: {
+        platform:
+          n(deal[BITRIX_FIELDS.ORDER_PROVIDER_PLATFORM]) !== undefined
+            ? ufValueToBool(deal[BITRIX_FIELDS.ORDER_PROVIDER_PLATFORM])
+            : currentProfile.order_provider.platform,
+        partner:
+          n(deal[BITRIX_FIELDS.ORDER_PROVIDER_PARTNER]) !== undefined
+            ? ufValueToBool(deal[BITRIX_FIELDS.ORDER_PROVIDER_PARTNER])
+            : currentProfile.order_provider.partner,
+      },
+    };
+  }
+
+  private extractVehicleSpecifications(
+    deal: BitrixDealFields,
+    current?: YandexFleetVehicleData['vehicle_specifications'],
+  ): YandexFleetUpdateCarRequest['vehicle_specifications'] | null {
+    const n = normalizeBitrixValue;
+
+    const brand = n(deal[BITRIX_FIELDS.BRAND]) ? String(deal[BITRIX_FIELDS.BRAND]) : current?.brand;
+    const model = n(deal[BITRIX_FIELDS.MODEL]) ? String(deal[BITRIX_FIELDS.MODEL]) : current?.model;
+    const year = n(deal[BITRIX_FIELDS.YEAR])
+      ? Number(deal[BITRIX_FIELDS.YEAR]) || current?.year
+      : current?.year;
+    const color = n(deal[BITRIX_FIELDS.COLOR])
+      ? mapBitrixColorToYandex(deal[BITRIX_FIELDS.COLOR]) || current?.color
+      : current?.color;
+    const transmission = n(deal[BITRIX_FIELDS.TRANSMISSION])
+      ? mapBitrixTransmissionToYandex(deal[BITRIX_FIELDS.TRANSMISSION]) || current?.transmission
+      : current?.transmission;
+    const vin = n(deal[BITRIX_FIELDS.VIN]) ? String(deal[BITRIX_FIELDS.VIN]) : current?.vin;
+
+    if (!brand || !model || !year || !color || !transmission || !vin) return null;
+
+    return {
+      ...current,
+      brand,
+      model,
+      year,
+      color,
+      transmission,
+      vin,
+    };
+  }
+
+  private extractVehicleLicenses(
+    deal: BitrixDealFields,
+    current?: YandexFleetVehicleData['vehicle_licenses'],
+  ): YandexFleetUpdateCarRequest['vehicle_licenses'] | null {
+    const n = normalizeBitrixValue;
+
+    const licensePlate = n(deal[BITRIX_FIELDS.LICENSE_PLATE])
+      ? String(deal[BITRIX_FIELDS.LICENSE_PLATE])
+      : current?.licence_plate_number;
+
+    if (!licensePlate) return null;
+
+    return {
+      ...current,
+      licence_plate_number: licensePlate,
+      ...(n(deal[BITRIX_FIELDS.STS])
+        ? { registration_certificate: String(deal[BITRIX_FIELDS.STS]) }
+        : current?.registration_certificate && {
+            registration_certificate: current.registration_certificate,
+          }),
+    };
+  }
+
+  private extractParkProfile(
+    deal: BitrixDealFields,
+    current?: YandexFleetVehicleData['park_profile'],
+  ): YandexFleetUpdateCarRequest['park_profile'] | null {
+    const n = normalizeBitrixValue;
+
+    const fuelType = n(deal[BITRIX_FIELDS.FUEL_TYPE])
+      ? mapBitrixFuelTypeToYandex(deal[BITRIX_FIELDS.FUEL_TYPE]) || current?.fuel_type
+      : current?.fuel_type;
+
+    const licensePlate = n(deal[BITRIX_FIELDS.LICENSE_PLATE])
+      ? String(deal[BITRIX_FIELDS.LICENSE_PLATE])
+      : undefined;
+    const callsign = current?.callsign ?? licensePlate;
+
+    if (!fuelType || !callsign) return null;
+
+    const equipmentRaw = deal[BITRIX_FIELDS.EQUIPMENT];
+    const equipmentIds =
+      Array.isArray(equipmentRaw) && equipmentRaw.length > 0
+        ? (equipmentRaw as Array<string | number>).map(Number).filter((v) => !Number.isNaN(v))
+        : [];
+
+    const isParkProperty = deal[BITRIX_FIELDS.CAR_OWNER] === BITRIX_DICT.CAR_OWNER.OWN;
+
+    const parkProfile: YandexFleetUpdateCarRequest['park_profile'] = {
+      ...current,
+      callsign,
+      status: current?.status ?? 'working',
+      fuel_type: fuelType,
+      is_park_property: isParkProperty,
+      leasing_conditions:
+        current?.leasing_conditions as YandexFleetUpdateCarRequest['park_profile']['leasing_conditions'],
+      ...(equipmentIds.length > 0 && {
+        amenities: mapBitrixAmenitiesToYandex(equipmentIds) || current?.amenities,
+      }),
+    };
+
+    if (isParkProperty) {
+      parkProfile.ownership_type =
+        mapBitrixOwnershipTypeToYandex(deal[BITRIX_FIELDS.CAR_OWNER]) || current?.ownership_type;
+    }
+
+    return parkProfile;
+  }
+
+  private extractCargo(
+    deal: BitrixDealFields,
+    current?: YandexFleetVehicleData['cargo'],
+  ): YandexFleetUpdateCarRequest['cargo'] | undefined {
+    const n = normalizeBitrixValue;
+
+    const lengthRaw = n(deal[BITRIX_FIELDS.LENGTH]);
+    const widthRaw = n(deal[BITRIX_FIELDS.WIDTH]);
+    const heightRaw = n(deal[BITRIX_FIELDS.HEIGHT]);
+    const capacityRaw = n(deal[BITRIX_FIELDS.LOAD_CAPACITY]);
+
+    const hasCargoFromDeal =
+      lengthRaw !== undefined ||
+      widthRaw !== undefined ||
+      heightRaw !== undefined ||
+      capacityRaw !== undefined;
+
+    if (!hasCargoFromDeal && !current) return undefined;
+
+    const currentDims = current?.cargo_hold_dimensions;
+
+    return {
+      cargo_loaders: current?.cargo_loaders ?? 0,
+      carrying_capacity:
+        capacityRaw !== undefined
+          ? Number(capacityRaw) || current?.carrying_capacity || 0
+          : (current?.carrying_capacity ?? 0),
+      cargo_hold_dimensions: {
+        length:
+          lengthRaw !== undefined
+            ? Number(lengthRaw) || currentDims?.length || 0
+            : (currentDims?.length ?? 0),
+        width:
+          widthRaw !== undefined
+            ? Number(widthRaw) || currentDims?.width || 0
+            : (currentDims?.width ?? 0),
+        height:
+          heightRaw !== undefined
+            ? Number(heightRaw) || currentDims?.height || 0
+            : (currentDims?.height ?? 0),
+      },
+    };
+  }
+
+  private buildYandexCarUpdatePayload(
+    currentCar: YandexFleetVehicleData,
+    deal: BitrixDealFields,
+  ): YandexFleetUpdateCarRequest | null {
+    const vehicleSpecifications = this.extractVehicleSpecifications(
+      deal,
+      currentCar.vehicle_specifications,
+    );
+
+    const vehicleLicenses = this.extractVehicleLicenses(deal, currentCar.vehicle_licenses);
+    const parkProfile = this.extractParkProfile(deal, currentCar.park_profile);
+
+    if (!vehicleSpecifications || !vehicleLicenses || !parkProfile) return null;
+
+    const payload: YandexFleetUpdateCarRequest = {
+      vehicle_specifications: vehicleSpecifications,
+      vehicle_licenses: vehicleLicenses,
+      park_profile: parkProfile,
+    };
+
+    if (currentCar.child_safety) {
+      payload.child_safety = currentCar.child_safety;
+    }
+
+    const cargo = this.extractCargo(deal, currentCar.cargo);
+    if (cargo) payload.cargo = cargo;
+
+    return payload;
+  }
+
+  private buildYandexCarCreatePayload(deal: BitrixDealFields): YandexFleetUpdateCarRequest | null {
+    const vehicleSpecifications = this.extractVehicleSpecifications(deal);
+    const vehicleLicenses = this.extractVehicleLicenses(deal);
+    const parkProfile = this.extractParkProfile(deal);
+
+    if (!vehicleSpecifications || !vehicleLicenses || !parkProfile) return null;
+
+    const payload: YandexFleetUpdateCarRequest = {
+      vehicle_specifications: vehicleSpecifications,
+      vehicle_licenses: vehicleLicenses,
+      park_profile: parkProfile,
+    };
+
+    const cargo = this.extractCargo(deal);
+    if (cargo) payload.cargo = cargo;
+
+    return payload;
+  }
+
+  private async saveLocalState(
+    yandexProfileId: string,
+    parkId: string,
+    bitrixContactId: string | number,
+    bitrixDealId: string | number,
+    deal: BitrixDealFields,
+    contact: BitrixContactFields,
+  ): Promise<void> {
+    const dataHash = calculateDriverHash(deal, contact);
+
+    await this.yandexFleetProfileService.saveProfile(
+      yandexProfileId,
+      parkId,
+      String(bitrixContactId),
+      String(bitrixDealId),
+      dataHash,
+      deal.STAGE_ID?.split(':')[1],
+    );
+  }
+}
