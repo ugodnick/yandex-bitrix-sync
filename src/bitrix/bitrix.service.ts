@@ -2,9 +2,10 @@ import axios, { AxiosInstance, isAxiosError } from 'axios';
 import {
   AddBitrixContactDto,
   AddBitrixDealDto,
-  BITRIX_FIELDS,
   BitrixContactFields,
+  BitrixDealCategory,
   BitrixDealFields,
+  BitrixListResponse,
   BitrixUserField,
   BitrixUserFieldFields,
   CreateContactResponse,
@@ -60,6 +61,29 @@ export class BitrixService {
     }
 
     if (!data.result) throw new Error('Contact not found');
+
+    return data.result;
+  }
+
+  async getContactsByPhone(phone: string): Promise<BitrixContactFields[]> {
+    let data: BitrixListResponse<BitrixContactFields>;
+
+    try {
+      const response = await this.client.post<BitrixListResponse<BitrixContactFields>>(
+        'crm.contact.list.json',
+        {
+          filter: {
+            PHONE: phone,
+          },
+          select: ['ID', 'NAME', 'LAST_NAME', 'PHONE', 'EMAIL', 'ASSIGNED_BY_ID'],
+        },
+      );
+      data = response.data;
+    } catch (error) {
+      throw buildError(error, BitrixService.name);
+    }
+
+    if (!data.result || data.result.length === 0) return [];
 
     return data.result;
   }
@@ -145,9 +169,9 @@ export class BitrixService {
     try {
       const response = await this.client.get('crm.deal.list.json', {
         params: {
-          filter: { CONTACT_ID: contactId },
+          filter: { CONTACT_ID: contactId, CATEGORY_ID: BitrixDealCategory.YANDEX_DELIVERY },
           order: { ID: 'DESC' },
-          select: ['*', BITRIX_FIELDS.AGGREGATOR, BITRIX_FIELDS.DISPATCHER, BITRIX_FIELDS.VACANCY],
+          select: ['*', 'UF_*'],
         },
       });
 

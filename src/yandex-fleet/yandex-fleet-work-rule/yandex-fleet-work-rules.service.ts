@@ -1,13 +1,11 @@
 import { YandexFleetService } from '../yandex-fleet.service';
 import { Repository } from 'typeorm';
 import { YandexFleetWorkRuleEntity } from './yandex-fleet-work-rule.entity';
-import { BitrixService } from '../../bitrix/bitrix.service';
 
 export class YandexFleetWorkRuleService {
   constructor(
     private readonly yandexFleetWorkRuleRepository: Repository<YandexFleetWorkRuleEntity>,
     private readonly yandexFleetService: YandexFleetService,
-    private readonly bitrixService: BitrixService,
   ) {}
 
   async syncParkWorkRules(parkId: string): Promise<void> {

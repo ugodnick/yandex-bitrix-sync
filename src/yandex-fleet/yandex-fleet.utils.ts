@@ -1,6 +1,6 @@
 import {
+  BITRIX_CATEGORY_STAGE,
   BITRIX_DICT,
-  BITRIX_FIELDS,
   BitrixDealCategory,
   YANDEX_DELIVERY_PARKS,
 } from '../bitrix/bitrix.type';
@@ -8,6 +8,7 @@ import {
   CountryCode,
   EmploymentType,
   FuelType,
+  OrderStatus,
   TransmissionType,
   VehicleColor,
   YandexFleetDriverProfile,
@@ -94,8 +95,16 @@ export const mapFuelType = (type?: FuelType) => {
   return map[type];
 };
 
+export const mapCarOwnership = (
+  car: YandexFleetVehicleData | undefined,
+): (typeof BITRIX_DICT.CAR_OWNER)[keyof typeof BITRIX_DICT.CAR_OWNER] => {
+  if (!car) return BITRIX_DICT.CAR_OWNER.OTHER;
+
+  return car.park_profile.is_park_property ? BITRIX_DICT.CAR_OWNER.PARK : BITRIX_DICT.CAR_OWNER.OWN;
+};
+
 export const mapVehicleType = (car: YandexFleetVehicleData | undefined): number => {
-  if (!car) return BITRIX_DICT.VEHICLE_TYPE.NONE;
+  if (!car || !car.vehicle_specifications.vin) return BITRIX_DICT.VEHICLE_TYPE.NONE;
   if (car.cargo) return BITRIX_DICT.VEHICLE_TYPE.TRUCK;
 
   return BITRIX_DICT.VEHICLE_TYPE.CAR;
@@ -108,6 +117,16 @@ export const mapVacancy = (
   if (car.cargo) return BITRIX_DICT.VACANCY.CARGO;
 
   return BITRIX_DICT.VACANCY.AUTO_COURIER;
+};
+
+export const mapContractorType = (
+  car: YandexFleetVehicleData | undefined,
+): (typeof BITRIX_DICT.CONTRACTOR_TYPE)[keyof typeof BITRIX_DICT.CONTRACTOR_TYPE] => {
+  if (!car || !car.vehicle_specifications.vin)
+    return BITRIX_DICT.CONTRACTOR_TYPE.BICYCLE_FOOT_COURIER;
+  if (car.cargo) return BITRIX_DICT.CONTRACTOR_TYPE.CARGO_DRIVER;
+
+  return BITRIX_DICT.CONTRACTOR_TYPE.AUTO_COURIER;
 };
 
 export const mapCategory = (
@@ -165,6 +184,7 @@ export function calculateDriverHash(
     dlIssueDate: dl?.issue_date,
     dlExpiryDate: dl?.expiry_date,
     dlCountry: dl?.country,
+    dlBirthdate: dl?.birth_date,
 
     // Автомобиль — идентификация
     carBrand: vehicleSpecifications?.brand,
@@ -188,7 +208,59 @@ export function calculateDriverHash(
 
     bitrixStageId,
   };
-  console.log('yandex');
-  console.log(JSON.stringify(significantData));
+
   return crypto.createHash('md5').update(JSON.stringify(significantData)).digest('hex');
+}
+
+export function formatDate(date: Date | string): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleDateString('ru-RU');
+}
+
+export type ProfileStatus = 'Новый' | 'Активный' | 'Отток' | 'Архив';
+
+export function stageToStatus(stageId: string): ProfileStatus | 'Неизвестно' {
+  const category = BITRIX_CATEGORY_STAGE[BitrixDealCategory.YANDEX_DELIVERY];
+
+  if (stageId === category.Archive) return 'Архив';
+  if (stageId === category.Outflow) return 'Отток';
+  if (stageId === category.OutputFor1Order) return 'Новый';
+  if (stageId === category.Orders25) return 'Активный';
+  if (stageId === category.Working) return 'Активный';
+
+  return 'Активный';
+}
+
+export const mapVehicleTypeName = (car: YandexFleetVehicleData | undefined): string => {
+  if (!car || !car.vehicle_specifications.vin) return 'Пеший';
+  if (car.cargo) return 'Грузовое авто';
+
+  return 'Авто';
+};
+
+export const mapEmploymentTypeName = (type: EmploymentType | undefined): string => {
+  if (!type) return '';
+
+  const map = {
+    [EmploymentType.SelfEmployed]: 'Самозанятой',
+    [EmploymentType.ParkEmployee]: 'Парковый сотрудник',
+    [EmploymentType.IndividualEntrepreneur]: 'ИП',
+  };
+  return map[type];
+};
+
+export function mapOrderStatusName(status: OrderStatus): string {
+  const statusMap: Record<OrderStatus, string> = {
+    [OrderStatus.None]: 'без статуса',
+    [OrderStatus.Driving]: 'в пути',
+    [OrderStatus.Waiting]: 'ждёт клиента',
+    [OrderStatus.Transporting]: 'везёт клиента',
+    [OrderStatus.Complete]: 'выполнен',
+    [OrderStatus.Cancelled]: 'отменён',
+    [OrderStatus.Calling]: 'ошибка, технический статус',
+    [OrderStatus.Expired]: 'ошибка, технический статус',
+    [OrderStatus.Failed]: 'ошибка, технический статус',
+  };
+
+  return statusMap[status];
 }

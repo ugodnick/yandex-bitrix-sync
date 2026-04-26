@@ -240,8 +240,8 @@ export const calculateDriverHash = (deal: BitrixDealFields, contact: BitrixConta
     lastName: contact.LAST_NAME,
     middleName: contact.SECOND_NAME,
     employmentType: mapBitrixEmploymentTypeToYandex(deal[BITRIX_FIELDS.EMPLOYMENT_TYPE]),
-    address: deal[BITRIX_FIELDS.ADDRESS_DISP],
-    comment: deal.COMMENTS,
+    address: String(deal[BITRIX_FIELDS.ADDRESS_DISP]).split('|')[0].trim(),
+    comment: deal.COMMENTS ?? undefined,
 
     balanceLimit: deal[BITRIX_FIELDS.BALANCE_LIMIT],
 
@@ -252,6 +252,7 @@ export const calculateDriverHash = (deal: BitrixDealFields, contact: BitrixConta
     dlExpiryDate:
       formatDateForYandex(String(deal[BITRIX_FIELDS.DL_EXPIRY_DATE] || '')) || undefined,
     dlCountry: mapBitrixCountryToYandex(deal[BITRIX_FIELDS.DL_COUNTRY_ISSUED]),
+    dlBirthdate: formatDateForYandex(String(deal[BITRIX_FIELDS.BIRTH_DATE] || '')) || undefined,
 
     carBrand: deal[BITRIX_FIELDS.BRAND] ? String(deal[BITRIX_FIELDS.BRAND]) : undefined,
     carModel: deal[BITRIX_FIELDS.MODEL] ? String(deal[BITRIX_FIELDS.MODEL]) : undefined,
@@ -280,10 +281,9 @@ export const calculateDriverHash = (deal: BitrixDealFields, contact: BitrixConta
     platform: deal[BITRIX_FIELDS.ORDER_PROVIDER_PLATFORM] === '1',
     partner: deal[BITRIX_FIELDS.ORDER_PROVIDER_PARTNER] === '1',
 
-    bitrixStageId: deal.STAGE_ID?.split(':')[1],
+    bitrixStageId: deal.STAGE_ID,
   };
-  console.log('bitrix');
-  console.log(JSON.stringify(significantData));
+
   return crypto.createHash('md5').update(JSON.stringify(significantData)).digest('hex');
 };
 

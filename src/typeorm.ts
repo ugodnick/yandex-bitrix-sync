@@ -9,4 +9,5 @@ export default new DataSource({
   migrations: [join(__dirname, 'migrations/*{.ts,.js}')],
   synchronize: true,
   logging: false,
+  extra: {},
 });

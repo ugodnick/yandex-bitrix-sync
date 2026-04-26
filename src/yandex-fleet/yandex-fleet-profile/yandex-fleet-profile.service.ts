@@ -2,32 +2,45 @@ import { Repository } from 'typeorm';
 import { YandexFleetService } from '../yandex-fleet.service';
 import { BitrixService } from '../../bitrix/bitrix.service';
 import { YandexFleetProfileEntity } from './yandex-fleet-profile.entity';
-import { BITRIX_DICT, BITRIX_FIELDS, YANDEX_TO_BITRIX_PARK } from '../../bitrix/bitrix.type';
+import {
+  BITRIX_DICT,
+  BITRIX_FIELDS,
+  BitrixDealFields,
+  YANDEX_TO_BITRIX_PARK,
+} from '../../bitrix/bitrix.type';
 import {
   DriverWorkStatus,
   VehicleAmenities,
+  YandexFleetDriverProfile,
   YandexFleetDriverProfileItem,
+  YandexFleetVehicleData,
 } from '../yandex-fleet.type';
 import {
   calculateDriverHash,
   cleanPayload,
   formatDateForBitrix,
+  mapVehicleTypeName,
   mapAggregator,
   mapCategory,
   mapDlCountryToBitrix,
   mapEmploymentType,
+  mapEmploymentTypeName,
   mapFuelType,
   mapTransmission,
   mapVacancy,
   mapVehicleType,
   mapYandexColorToBitrix,
+  mapContractorType,
+  mapCarOwnership,
 } from '../yandex-fleet.utils';
 import { getBitrixCategory } from '../../bitrix/bitrix.utils';
+import { YandexFleetOrderService } from '../yandex-fleet-order/yandex-fleet-order.service';
 
 export class YandexFleetProfileService {
   constructor(
     private yandexService: YandexFleetService,
     private bitrixService: BitrixService,
+    private yandexFleetOrderService: YandexFleetOrderService,
     private yandexFleetProfileRepository: Repository<YandexFleetProfileEntity>,
   ) {}
 
@@ -52,8 +65,14 @@ export class YandexFleetProfileService {
           `[YandexFleetProfileService] Обработка пачки: ${offset + 1} - ${offset + drivers.length} из ${total}...`,
         );
         for (const driver of drivers) {
-          await this.processYandexProfile(yandexParkId, driver.driver_profile.id, driver);
-          total = 0;
+          try {
+            await this.processYandexProfile(yandexParkId, driver.driver_profile.id, driver);
+          } catch (error) {
+            console.error(
+              `[YandexFleetProfileService] Ошибка обработки водителя ${driver.driver_profile.id} в парке ${yandexParkId}:`,
+              error,
+            );
+          }
         }
 
         offset += limit;
@@ -71,67 +90,51 @@ export class YandexFleetProfileService {
     }
   }
 
-  private async processYandexProfile(
-    parkId: string,
-    profileId: string,
-    driver: YandexFleetDriverProfileItem,
-  ): Promise<void> {
-    const localState = await this.yandexFleetProfileRepository.findOneBy({
-      yandexProfileId: profileId,
+  private buildContactPayload(driverProfile: YandexFleetDriverProfile) {
+    const person = driverProfile.person;
+    const dl = person.driver_license;
+    const phone = person.contact_info.phone;
+    const firstName = person.full_name.first_name || 'Неизвестно';
+    const lastName = person.full_name.last_name || 'Неизвестно';
+    const middleName = person.full_name.middle_name;
+
+    return cleanPayload({
+      NAME: firstName,
+      LAST_NAME: lastName,
+      SECOND_NAME: middleName,
+      BIRTHDATE: formatDateForBitrix(dl?.birth_date),
+      PHONE: phone ? [{ VALUE: phone, VALUE_TYPE: 'WORK' }] : [],
     });
+  }
 
-    const category = getBitrixCategory(parkId);
-    const stagesToSkip: readonly string[] = [category.Archive, category.Duplicates];
-    if (localState && stagesToSkip.includes(localState.bitrixStageId)) {
-      return;
-    }
-
-    let isArchive = false;
-    if (driver.driver_profile.work_status !== DriverWorkStatus.Working) {
-      isArchive = true;
-    }
-
-    if (isArchive && localState) {
-      localState.bitrixStageId = category.Archive;
-    }
-
-    let driverCar = undefined;
-    if (driver.car?.id) {
-      driverCar = await this.yandexService.getCar(parkId, driver.car?.id);
-    }
-
-    const driverProfile = await this.yandexService.getProfile(parkId, driver.driver_profile.id);
-
-    // Yandex API Bug fix
-    if ((driverProfile.person.driver_license.country as string) === 'vnm') {
-      driverProfile.person.driver_license.country = undefined;
-    }
+  private buildDealPayload(
+    parkId: string,
+    driverProfile: YandexFleetDriverProfile,
+    driverCar: YandexFleetVehicleData | undefined,
+    isNew: boolean,
+  ) {
     const person = driverProfile.person;
     const profile = driverProfile.profile;
-    const dl = driverProfile.person.driver_license;
+    const dl = person.driver_license;
+    const phone = person.contact_info.phone;
+    const firstName = person.full_name.first_name || 'Неизвестно';
+    const lastName = person.full_name.last_name || 'Неизвестно';
+    const middleName = person.full_name.middle_name;
 
     const cargo = driverCar?.cargo;
     const vehicleSpecifications = driverCar?.vehicle_specifications;
     const vehiclePark = driverCar?.park_profile;
     const vehicleLicenses = driverCar?.vehicle_licenses;
 
-    if (!profileId) return;
-
-    const currentHash = calculateDriverHash(driverProfile, driverCar, localState?.bitrixStageId);
-
-    const phone = person.contact_info.phone;
-    const firstName = person.full_name.first_name || 'Неизвестно';
-    const lastName = person.full_name.last_name || 'Неизвестно';
-    const middleName = person.full_name.middle_name;
-
-    const dealPayload = cleanPayload({
+    return cleanPayload({
+      [BITRIX_FIELDS.BIRTH_DATE]: formatDateForBitrix(dl.birth_date),
       [BITRIX_FIELDS.FIRST_NAME_DISP]: firstName,
       [BITRIX_FIELDS.LAST_NAME_DISP]: lastName,
       [BITRIX_FIELDS.PATRONYMIC_DISP]: middleName,
       [BITRIX_FIELDS.PHONE_DISP]: phone,
       [BITRIX_FIELDS.PHONE_SYSTEM]: phone,
       [BITRIX_FIELDS.VACANCY]: mapVacancy(driverCar),
-      // [BITRIX_FIELDS.CONTRACTOR_TYPE]: undefined,
+      [BITRIX_FIELDS.CONTRACTOR_TYPE]: mapContractorType(driverCar),
       [BITRIX_FIELDS.AGGREGATOR]: mapAggregator(parkId),
       [BITRIX_FIELDS.HIRE_DATE]: formatDateForBitrix(profile.hire_date),
       COMMENTS: profile.comment,
@@ -149,6 +152,7 @@ export class YandexFleetProfileService {
       [BITRIX_FIELDS.LICENSE_PLATE]: vehicleLicenses?.licence_plate_number,
       [BITRIX_FIELDS.STS]: vehicleLicenses?.registration_certificate,
       [BITRIX_FIELDS.COLOR]: mapYandexColorToBitrix(vehicleSpecifications?.color),
+      [BITRIX_FIELDS.VIN]: vehicleSpecifications?.vin,
 
       [BITRIX_FIELDS.VEHICLE_TYPE]: mapVehicleType(driverCar),
       [BITRIX_FIELDS.EMPLOYMENT_TYPE]: mapEmploymentType(person.employment_type),
@@ -157,7 +161,7 @@ export class YandexFleetProfileService {
         ? [BITRIX_DICT.EQUIPMENT.AIR_CONDITIONING]
         : undefined,
 
-      [BITRIX_FIELDS.TAGS]: !localState ? [BITRIX_DICT.TAGS.NEW_CONTRACTOR] : undefined,
+      [BITRIX_FIELDS.TAGS]: isNew ? [BITRIX_DICT.TAGS.NEW_CONTRACTOR] : undefined,
 
       [BITRIX_FIELDS.LENGTH]: cargo?.cargo_hold_dimensions?.length,
       [BITRIX_FIELDS.HEIGHT]: cargo?.cargo_hold_dimensions?.height,
@@ -166,9 +170,7 @@ export class YandexFleetProfileService {
       [BITRIX_FIELDS.TRANSMISSION]: mapTransmission(vehicleSpecifications?.transmission),
       [BITRIX_FIELDS.FUEL_TYPE]: mapFuelType(vehiclePark?.fuel_type),
 
-      [BITRIX_FIELDS.CAR_OWNER]:
-        vehiclePark?.is_park_property !== undefined ? !vehiclePark.is_park_property : undefined,
-      // [BITRIX_FIELDS.DEVICE_TYPE]: undefined,
+      [BITRIX_FIELDS.CAR_OWNER]: mapCarOwnership(driverCar),
 
       [BITRIX_FIELDS.ADDRESS_DISP]: person.contact_info.address,
       [BITRIX_FIELDS.ORDER_PROVIDER_PLATFORM]: driverProfile.order_provider.platform,
@@ -176,59 +178,191 @@ export class YandexFleetProfileService {
       [BITRIX_FIELDS.DRIVING_EXPERIENCE]: formatDateForBitrix(
         person.driver_license_experience?.total_since_date,
       ),
-      // [BITRIX_FIELDS.WORK_TYPE]: undefined,
+      [BITRIX_FIELDS.BALANCE_LIMIT]: driverProfile.account.balance_limit,
     });
+  }
+
+  private async createProfile(params: {
+    parkId: string;
+    profileId: string;
+    driverProfile: YandexFleetDriverProfile;
+    driverCar: YandexFleetVehicleData | undefined;
+    stage: string;
+    currentHash: string;
+    lastOrderDate: Date | null;
+    firstOrderDate: Date | null;
+    hiredAt: Date;
+  }): Promise<void> {
+    const {
+      parkId,
+      profileId,
+      driverProfile,
+      driverCar,
+      stage,
+      currentHash,
+      lastOrderDate,
+      firstOrderDate,
+      hiredAt,
+    } = params;
+
+    const bitrixDispatcherId = YANDEX_TO_BITRIX_PARK[parkId];
+    if (!bitrixDispatcherId) {
+      console.warn(`[YandexFleetProfileService] Внимание! Парк ${parkId} не найден.`);
+      return;
+    }
+
+    const flat = this.extractFlatFields(driverProfile, driverCar, lastOrderDate, firstOrderDate);
+
+    const contactPayload = this.buildContactPayload(driverProfile);
+    const dealPayload = this.buildDealPayload(parkId, driverProfile, driverCar, true);
+
+    const contactId = await this.bitrixService.createContact(contactPayload);
+
+    const dealId = await this.bitrixService.createDeal({
+      STAGE_ID: stage,
+      TITLE: `${flat.lastName} ${flat.firstName}`,
+      CONTACT_ID: contactId,
+      CATEGORY_ID: mapCategory(parkId),
+      [BITRIX_FIELDS.DISPATCHER]: bitrixDispatcherId,
+      [BITRIX_FIELDS.PROFILE_ID]: profileId,
+      [BITRIX_FIELDS.PROFILE_LINK]:
+        'https://fleet.yandex.ru/contractors/' + profileId + '/details?park_id=' + parkId,
+      ...dealPayload,
+    });
+
+    await this.yandexFleetProfileRepository.save({
+      yandexProfileId: profileId,
+      parkId,
+      bitrixStageId: stage,
+      bitrixContactId: String(contactId),
+      bitrixDealId: String(dealId),
+      dataHash: currentHash,
+      hiredAt,
+      ...flat,
+    });
+
+    console.log(`[YandexFleetProfileService] Создан Контакт (${contactId}) и Сделка (${dealId}).`);
+  }
+
+  private async updateProfile(params: {
+    parkId: string;
+    profileId: string;
+    driverProfile: YandexFleetDriverProfile;
+    driverCar: YandexFleetVehicleData | undefined;
+    stage: string;
+    currentHash: string;
+    localState: YandexFleetProfileEntity;
+    lastOrderDate: Date | null;
+    firstOrderDate: Date | null;
+  }): Promise<void> {
+    const {
+      parkId,
+      profileId,
+      driverProfile,
+      driverCar,
+      currentHash,
+      localState,
+      stage,
+      lastOrderDate,
+      firstOrderDate,
+    } = params;
+
+    const contactPayload = this.buildContactPayload(driverProfile);
+    const dealPayload = this.buildDealPayload(parkId, driverProfile, driverCar, false);
+    dealPayload.STAGE_ID = stage;
+
+    if (localState.bitrixContactId) {
+      await this.bitrixService.updateContact(localState.bitrixContactId, contactPayload);
+    }
+
+    if (localState.bitrixDealId) {
+      await this.bitrixService.updateDeal(localState.bitrixDealId, dealPayload);
+    }
+
+    const flat = this.extractFlatFields(driverProfile, driverCar, lastOrderDate, firstOrderDate);
+    Object.assign(localState, flat);
+    localState.dataHash = currentHash;
+    localState.bitrixStageId = stage;
+    await this.yandexFleetProfileRepository.save(localState);
+
+    console.log(`[YandexFleetProfileService] Успех! Обновлен профиль ${profileId}.`);
+  }
+
+  private async processYandexProfile(
+    parkId: string,
+    profileId: string,
+    driver: YandexFleetDriverProfileItem,
+  ): Promise<void> {
+    let localState = await this.yandexFleetProfileRepository.findOneBy({
+      yandexProfileId: profileId,
+    });
+
+    const category = getBitrixCategory(parkId);
+    const stagesToSkip: readonly string[] = [category.Duplicates];
+    if (localState && stagesToSkip.includes(localState.bitrixStageId)) return;
+
+    let driverCar = undefined;
+    if (driver.car?.id) {
+      driverCar = await this.yandexService.getCar(parkId, driver.car.id);
+    }
+
+    const driverProfile = await this.yandexService.getProfile(parkId, driver.driver_profile.id);
+
+    // Yandex API Bug fix
+    if ((driverProfile.person.driver_license.country as string) === 'vnm') {
+      driverProfile.person.driver_license.country = undefined;
+    }
+
+    if (!localState) {
+      localState = await this.findAndLinkExistingBitrixProfile(
+        parkId,
+        profileId,
+        driver,
+        driverProfile,
+        driverCar,
+      );
+    }
+
+    const hiredAt = new Date(driverProfile.profile.hire_date || driver.driver_profile.created_date);
+    const lastOrders = await this.yandexService.getLastDriverOrders(parkId, profileId, hiredAt);
+    const now = new Date();
+    const monthAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+
+    let stage: string = localState ? localState.bitrixStageId : category.NotProcessed;
+    const nextStage = this.yandexFleetOrderService.resolveNextStage(lastOrders, localState);
+
+    if (
+      driver.driver_profile.work_status &&
+      driver.driver_profile.work_status !== DriverWorkStatus.Working
+    ) {
+      stage = category.Archive;
+    } else if (nextStage && hiredAt < monthAgo) {
+      stage = nextStage;
+    }
+
+    const lastOrderDate = lastOrders.length > 0 ? new Date(lastOrders[0].booked_at) : null;
+    let firstOrderDate = localState?.firstOrderDate || null;
+
+    if (!firstOrderDate) {
+      firstOrderDate = await this.yandexService.getFirstOrderDate(parkId, profileId, hiredAt);
+    }
+
+    const currentHash = calculateDriverHash(driverProfile, driverCar, stage);
 
     if (!localState) {
       console.log(`[YandexFleetProfileService] Найден новый водитель: ${profileId}. Создаем...`);
 
-      try {
-        const bitrixDispatcherId = YANDEX_TO_BITRIX_PARK[parkId];
-        if (!bitrixDispatcherId) {
-          console.warn(`[YandexFleetProfileService] Внимание! Парк ${parkId} не найден.`);
-          return;
-        }
-
-        const contactId = await this.bitrixService.createContact(
-          cleanPayload({
-            NAME: firstName,
-            LAST_NAME: lastName,
-            SECOND_NAME: middleName,
-            BIRTHDATE: formatDateForBitrix(dl?.birth_date),
-            PHONE: phone ? [{ VALUE: phone, VALUE_TYPE: 'WORK' }] : [],
-          }),
-        );
-
-        const stage = isArchive ? category.Archive : category.NotProcessed;
-
-        const dealId = await this.bitrixService.createDeal({
-          STAGE_ID: stage,
-          TITLE: `${lastName} ${firstName}`,
-          CONTACT_ID: contactId,
-          CATEGORY_ID: mapCategory(parkId),
-          [BITRIX_FIELDS.DISPATCHER]: bitrixDispatcherId,
-          [BITRIX_FIELDS.PROFILE_ID]: profileId,
-          [BITRIX_FIELDS.PROFILE_LINK]:
-            'https://fleet.yandex.ru/contractors/' + profileId + '/details?park_id=' + parkId,
-          ...dealPayload,
-        });
-
-        await this.yandexFleetProfileRepository.save({
-          yandexProfileId: profileId,
-          parkId,
-          bitrixStageId: stage,
-          bitrixContactId: String(contactId),
-          bitrixDealId: String(dealId),
-          dataHash: currentHash,
-          hireDate: profile.hire_date ?? new Date().toISOString(),
-        });
-
-        console.log(
-          `[YandexFleetProfileService] Создан Контакт (${contactId}) и Сделка (${dealId}).`,
-        );
-      } catch (error) {
-        console.error(`[YandexFleetProfileService] Ошибка создания ${profileId}:`, error);
-      }
+      await this.createProfile({
+        parkId,
+        profileId,
+        driverProfile,
+        driverCar,
+        stage,
+        currentHash,
+        lastOrderDate,
+        firstOrderDate,
+        hiredAt,
+      });
 
       return;
     }
@@ -236,62 +370,117 @@ export class YandexFleetProfileService {
     if (localState.dataHash !== currentHash) {
       console.log(`[YandexFleetProfileService] Изменения у водителя ${profileId}. Обновляем...`);
 
-      try {
-        if (localState.bitrixContactId) {
-          await this.bitrixService.updateContact(
-            localState.bitrixContactId,
-            cleanPayload({
-              NAME: firstName,
-              LAST_NAME: lastName,
-              SECOND_NAME: middleName,
-              BIRTHDATE: formatDateForBitrix(dl?.birth_date),
-              PHONE: phone ? [{ VALUE: phone, VALUE_TYPE: 'WORK' }] : [],
-            }),
-          );
-        }
-
-        if (isArchive) {
-          dealPayload['STAGE_ID'] = category.Archive;
-        }
-
-        if (localState.bitrixDealId) {
-          await this.bitrixService.updateDeal(localState.bitrixDealId, dealPayload);
-        }
-
-        localState.dataHash = currentHash;
-        await this.yandexFleetProfileRepository.save(localState);
-
-        console.log(`[YandexFleetProfileService] Успех! Обновлен профиль ${profileId}.`);
-      } catch (error) {
-        console.error(
-          `[YandexFleetProfileService] Ошибка обновления водителя ${profileId}:`,
-          error,
-        );
-      }
+      await this.updateProfile({
+        parkId,
+        profileId,
+        driverProfile,
+        driverCar,
+        stage,
+        currentHash,
+        localState,
+        lastOrderDate,
+        firstOrderDate,
+      });
 
       return;
+    } else if (
+      localState.lastOrderDate !== lastOrderDate ||
+      localState.firstOrderDate !== firstOrderDate
+    ) {
+      localState.lastOrderDate = lastOrderDate;
+      localState.firstOrderDate = firstOrderDate;
+      await this.yandexFleetProfileRepository.save(localState);
     }
   }
 
-  async saveProfile(
-    yandexProfileId: string,
-    parkId: string,
-    contactId: string,
-    dealId: string,
-    hash: string,
-    stage: string | undefined,
+  private extractFlatFields(
+    driverProfile: YandexFleetDriverProfile,
+    driverCar: YandexFleetVehicleData | undefined,
+    lastOrderDate: Date | null,
+    firstOrderDate: Date | null,
   ) {
-    const data: Partial<YandexFleetProfileEntity> = {
-      yandexProfileId,
-      parkId,
-      bitrixContactId: contactId,
-      bitrixDealId: dealId,
-      dataHash: hash,
+    const person = driverProfile.person;
+    return {
+      firstName: person.full_name.first_name || 'Неизвестно',
+      lastName: person.full_name.last_name || 'Неизвестно',
+      middleName: person.full_name.middle_name || null,
+      phone: person.contact_info.phone || null,
+      employmentType: mapEmploymentTypeName(person.employment_type),
+      workRuleId: driverProfile.account.work_rule_id,
+      vehicleType: mapVehicleTypeName(driverCar),
+      firstOrderDate,
+      lastOrderDate,
     };
+  }
 
-    if (stage) {
-      data.bitrixStageId = stage;
+  private async findAndLinkExistingBitrixProfile(
+    parkId: string,
+    profileId: string,
+    driver: YandexFleetDriverProfileItem,
+    driverProfile: YandexFleetDriverProfile,
+    driverCar: YandexFleetVehicleData | undefined,
+  ): Promise<YandexFleetProfileEntity | null> {
+    const contactArrays = await Promise.all(
+      driver.driver_profile.phones.map((phone) => this.bitrixService.getContactsByPhone(phone)),
+    );
+
+    const uniqueContacts = Array.from(
+      new Map(
+        contactArrays
+          .flat()
+          .filter((c) => c.ID)
+          .map((c) => [c.ID, c]),
+      ).values(),
+    );
+
+    const dealResults = await Promise.all(
+      uniqueContacts.map((c) => this.bitrixService.getLatestDealByContact(c.ID!)),
+    );
+    const deals = dealResults.filter((d): d is BitrixDealFields => !!d);
+
+    let matchedDeal = deals.find((deal) => {
+      const dealProfileId = deal[BITRIX_FIELDS.PROFILE_ID]
+        ? String(deal[BITRIX_FIELDS.PROFILE_ID])
+        : undefined;
+      const dispatcherId = deal[BITRIX_FIELDS.DISPATCHER]
+        ? String(deal[BITRIX_FIELDS.DISPATCHER])
+        : undefined;
+      return dealProfileId === profileId || dispatcherId === parkId;
+    });
+
+    matchedDeal ??= deals.filter(
+      (d) => !d[BITRIX_FIELDS.DISPATCHER] && !d[BITRIX_FIELDS.PROFILE_ID],
+    )[0];
+
+    if (matchedDeal) {
+      const stage = matchedDeal.STAGE_ID;
+
+      const hireDateRaw = matchedDeal[BITRIX_FIELDS.HIRE_DATE];
+      const hiredAt =
+        (hireDateRaw ? String(hireDateRaw) : undefined) ??
+        matchedDeal.DATE_CREATE ??
+        new Date().toISOString();
+
+      return await this.yandexFleetProfileRepository.save({
+        yandexProfileId: profileId,
+        parkId,
+        bitrixStageId: stage,
+        bitrixContactId: String(matchedDeal.CONTACT_ID),
+        bitrixDealId: String(matchedDeal.ID),
+        dataHash: calculateDriverHash(driverProfile, driverCar, stage),
+        hiredAt,
+        firstOrderDate: null,
+        lastOrderDate: null,
+        firstName: driverProfile.person.full_name.first_name || 'Неизвестно',
+        lastName: driverProfile.person.full_name.last_name || 'Неизвестно',
+        middleName: driverProfile.person.full_name.middle_name,
+        phone: driverProfile.person.contact_info.phone || null,
+        employmentType: mapEmploymentTypeName(driverProfile.person.employment_type),
+        workRuleId: driverProfile.account.work_rule_id,
+        vehicleType: mapVehicleTypeName(driverCar),
+      });
     }
-    await this.yandexFleetProfileRepository.save(data);
+
+    return null;
   }
 }

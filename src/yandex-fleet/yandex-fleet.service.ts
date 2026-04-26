@@ -57,8 +57,20 @@ export class YandexFleetService {
       const response = await this.client.post<YandexDriverProfileResponse>(
         '/v1/parks/driver-profiles/list',
         {
-          query: { park: { id: parkId } },
-          // fields,
+          query: {
+            park: {
+              id: parkId,
+              // driver_profile: {
+              //   id: [],
+              // },
+            },
+          },
+          fields: {
+            account: [],
+            car: ['id'],
+            driver_profile: ['id', 'phones', 'work_status', 'hire_date', 'created_date'],
+            park: [],
+          },
           limit,
           offset,
         },
@@ -161,8 +173,8 @@ export class YandexFleetService {
                 booked_at: { from: from.toISOString(), to: new Date().toISOString() },
                 statuses: [OrderStatus.Complete],
               },
+              driver_profile: { id: driverProfileId },
             },
-            driver_profile: { id: driverProfileId },
           },
           limit,
           offset,
@@ -174,6 +186,77 @@ export class YandexFleetService {
     } catch (error: unknown) {
       this.handleError(error);
     }
+  }
+
+  async getFirstOrderDate(
+    parkId: string,
+    driverProfileId: string,
+    hireDate: Date,
+  ): Promise<Date | null> {
+    const from = hireDate;
+    const to = new Date(hireDate.getTime() + 28 * 24 * 60 * 60 * 1000); // +4 недели
+
+    const orders = await this.getOrdersInWindow(parkId, driverProfileId, from, to);
+
+    if (orders.length > 0) {
+      const earliest = orders.reduce((min, o) =>
+        new Date(o.booked_at) < new Date(min.booked_at) ? o : min,
+      );
+      return new Date(earliest.booked_at);
+    }
+
+    return null;
+  }
+
+  private async getOrdersInWindow(
+    parkId: string,
+    driverProfileId: string,
+    from: Date,
+    to: Date,
+  ): Promise<YandexFleetOrder[]> {
+    const response = await this.client.post<YandexOrdersResponse>(
+      '/v1/parks/orders/list',
+      {
+        query: {
+          park: {
+            id: parkId,
+            order: {
+              booked_at: { from: from.toISOString(), to: to.toISOString() },
+              statuses: [OrderStatus.Complete],
+            },
+            driver_profile: { id: driverProfileId },
+          },
+        },
+        limit: 500,
+      },
+      { headers: this.getParkHeaders(parkId) },
+    );
+    return response.data.orders;
+  }
+
+  async getOrdersPage(
+    parkId: string,
+    from: Date,
+    to: Date,
+    cursor?: string,
+  ): Promise<YandexOrdersResponse> {
+    const response = await this.client.post<YandexOrdersResponse>(
+      '/v1/parks/orders/list',
+      {
+        query: {
+          park: {
+            id: parkId,
+            order: {
+              booked_at: { from: from.toISOString(), to: to.toISOString() },
+            },
+          },
+        },
+        limit: 500,
+        ...(cursor ? { cursor } : {}),
+      },
+      { headers: this.getParkHeaders(parkId) },
+    );
+    return response.data;
   }
 
   async createProfile(

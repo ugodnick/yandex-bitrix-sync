@@ -9,45 +9,45 @@ export enum BitrixDealCategory {
 
 export const BITRIX_CATEGORY_STAGE = {
   [BitrixDealCategory.YANDEX_DELIVERY]: {
-    NotProcessed: 'NEW',
-    NewLead: 'UC_3Q3VT7',
-    TakenToWork: 'PREPARATION',
-    Ndz: 'UC_L3KDM6',
-    Thinking: 'UC_LW45DH',
-    DocumentCollection: 'PREPAYMENT_INVOICE',
-    TransferToSmz: 'UC_2CL0T5',
-    OutputFor1Order: 'UC_46LTTM',
-    NdzNotComeOut: 'UC_023RU4',
-    Orders25: 'UC_N3IZNW',
-    Working: 'UC_M9CKHN',
-    Outflow: 'UC_O9PXU5',
-    Pause: 'UC_NFJLN9',
-    Cold: 'UC_S71G81',
-    Archive: 'UC_242CHI',
-    Cps: 'UC_ED0AAW',
-    Duplicates: 'UC_1A121F',
-    DoNotClick: 'WON',
-    SpamAdvertisingIlliquid: 'LOSE',
-    Refusal: 'APOLOGY',
+    NotProcessed: 'C3:NEW',
+    NewLead: 'C3:UC_3Q3VT7',
+    TakenToWork: 'C3:PREPARATION',
+    Ndz: 'C3:UC_L3KDM6',
+    Thinking: 'C3:UC_LW45DH',
+    DocumentCollection: 'C3:PREPAYMENT_INVOICE',
+    TransferToSmz: 'C3:UC_2CL0T5',
+    OutputFor1Order: 'C3:UC_46LTTM',
+    NdzNotComeOut: 'C3:UC_023RU4',
+    Orders25: 'C3:UC_N3IZNW',
+    Working: 'C3:UC_M9CKHN',
+    Outflow: 'C3:UC_O9PXU5',
+    Pause: 'C3:UC_NFJLN9',
+    Cold: 'C3:UC_S71G81',
+    Archive: 'C3:UC_242CHI',
+    Cps: 'C3:UC_ED0AAW',
+    Duplicates: 'C3:UC_1A121F',
+    DoNotClick: 'C3:WON',
+    SpamAdvertisingIlliquid: 'C3:LOSE',
+    Refusal: 'C3:APOLOGY',
   },
   [BitrixDealCategory.YANDEX_TAXI]: {
-    NotProcessed: 'NEW',
-    TakenToWork: 'PREPARATION',
-    Thinking: 'PREPAYMENT_INVOICE',
-    NdzLid: 'EXECUTING',
-    DocumentCollection: 'FINAL_INVOICE',
-    TransferToSmz: 'UC_XV3P8H',
-    Output: 'UC_RREXQ0',
-    NdzNotComeOut: 'UC_BB8B8W',
-    Working: 'UC_QKD6SW',
-    Outflow: 'UC_OUUMS0',
-    Pause: 'UC_QF9VUT',
-    Cold: 'UC_QOQVBZ',
-    Archive: 'UC_O5OZKJ',
-    Duplicates: 'UC_S1PJEX',
-    DoNotClick: 'WON',
-    SpamAdvertisingIlliquid: 'LOSE',
-    Refusal: 'APOLOGY',
+    NotProcessed: 'C5:NEW',
+    TakenToWork: 'C5:PREPARATION',
+    Thinking: 'C5:PREPAYMENT_INVOICE',
+    NdzLid: 'C5:EXECUTING',
+    DocumentCollection: 'C5:FINAL_INVOICE',
+    TransferToSmz: 'C5:UC_XV3P8H',
+    Output: 'C5:UC_RREXQ0',
+    NdzNotComeOut: 'C5:UC_BB8B8W',
+    Working: 'C5:UC_QKD6SW',
+    Outflow: 'C5:UC_OUUMS0',
+    Pause: 'C5:UC_QF9VUT',
+    Cold: 'C5:UC_QOQVBZ',
+    Archive: 'C5:UC_O5OZKJ',
+    Duplicates: 'C5:UC_S1PJEX',
+    DoNotClick: 'C5:WON',
+    SpamAdvertisingIlliquid: 'C5:LOSE',
+    Refusal: 'C5:APOLOGY',
   },
 } as const;
 
@@ -225,6 +225,7 @@ export const BITRIX_FIELDS = {
   VIN: 'UF_CRM_1776668063',
   PROFILE_ID: 'UF_CRM_1776687357',
   TAX_SYSTEM_TYPE: 'UF_CRM_1776749434',
+  BIRTH_DATE: 'UF_CRM_1775210097',
 } as const;
 
 export const BITRIX_TO_YANDEX_PARK: Record<string, string> = {
@@ -233,12 +234,12 @@ export const BITRIX_TO_YANDEX_PARK: Record<string, string> = {
   '77': '', // КАРАВАН (Я.Такси Саратов)
   '327': '', // ФАРТCAR (Я.Такси Саратов)
   '85': '', // АЛЬФА (Я.Маркет Авто/Грузовое ЛюбойГород)
-  '95': '', // ФИШТ (Я.Доставка Авто Владивосток)
-  '97': '', // ЭВЕРЕСТ (Я.Доставка Пеший Владивосток)
-  // '83': 'bf157cfe3a914fda817b1d2dde37ada1', // ДЖИМАРА (Я.Доставка Авто Хабаровск)
-  '91': '', // МИЖИРГИ (Я.Доставка Пеший Хабаровск)
-  '87': '', // БЕЛУХА (Я.Доставка Пеший/Авто Уссурийск)
-  '335': '', // ДАУТАЙ (Я.Доставка Пеший/Авто Благовещенск)
+  '95': '30ca63b508454371b9deb252b3306083', // ФИШТ (Я.Доставка Авто Владивосток)
+  '97': '89a42a3a9a964fff9c41fd076fd09c6c', // ЭВЕРЕСТ (Я.Доставка Пеший Владивосток)
+  '83': 'bf157cfe3a914fda817b1d2dde37ada1', // ДЖИМАРА (Я.Доставка Авто Хабаровск)
+  '91': '35c53a402f8b4f04a8806e68da798f20', // МИЖИРГИ (Я.Доставка Пеший Хабаровск)
+  '87': 'c1af957f21b844868adc314f0e24e985', // БЕЛУХА (Я.Доставка Пеший/Авто Уссурийск)
+  '335': '9ac02ba7e5174c10b401cfb7dfdaa894', // ДАУТАЙ (Я.Доставка Пеший/Авто Благовещенск)
   '79': '8b99022cd8a24f8782fc19feff7a45e2', // ПРОФИЛОГИСТИК (Я.Доставка Пеший/Авто Саратов)
   '81': '', // МАГИСТРАЛЬ (Я.Доставка Грузовое ЛюбойГород)
   '89': '', // КАПЕЛЛА (Я.Доставка Пеший/Авто Самара)
@@ -246,20 +247,32 @@ export const BITRIX_TO_YANDEX_PARK: Record<string, string> = {
   '325': '', // ПРОЦИОН (Я.Доставка Пеший/Авто Челябинск)
   '329': '', // ВЕГА (Я.Доставка Пеший/Авто Сочи)
   '331': '', // АНТАРЕС (Я.Доставка Пеший/Авто Тула)
-  // '333': '8ddb58b306774e458fc7d24203c36c14', // АРКТУР (Я.Доставка Пеший/Авто Омск)
+  '333': '8ddb58b306774e458fc7d24203c36c14', // АРКТУР (Я.Доставка Пеший/Авто Омск)
   '337': '', // ОРИОН (Я.Доставка Пеший/Авто Иркутск)
 } as const;
 
 export const YANDEX_TO_BITRIX_PARK: Record<string, string> = {
-  // '8ddb58b306774e458fc7d24203c36c14': '333',
-  // 'bf157cfe3a914fda817b1d2dde37ada1': '83',
+  '8ddb58b306774e458fc7d24203c36c14': '333',
+  bf157cfe3a914fda817b1d2dde37ada1: '83',
   '8b99022cd8a24f8782fc19feff7a45e2': '79',
+  '30ca63b508454371b9deb252b3306083': '95',
+  '89a42a3a9a964fff9c41fd076fd09c6c': '97',
+  '35c53a402f8b4f04a8806e68da798f20': '91',
+  c1af957f21b844868adc314f0e24e985: '87',
+  '9ac02ba7e5174c10b401cfb7dfdaa894': '335',
 } as const;
 
 export const YANDEX_DELIVERY_PARKS = [
+  'bf157cfe3a914fda817b1d2dde37ada1',
   '8b99022cd8a24f8782fc19feff7a45e2',
   '8ddb58b306774e458fc7d24203c36c14',
+  '30ca63b508454371b9deb252b3306083',
+  '89a42a3a9a964fff9c41fd076fd09c6c',
+  '35c53a402f8b4f04a8806e68da798f20',
+  'c1af957f21b844868adc314f0e24e985',
+  '9ac02ba7e5174c10b401cfb7dfdaa894',
 ];
+
 export const YANDEX_TAXI_PARKS = [''];
 
 export interface BitrixDealFields {
@@ -282,6 +295,7 @@ export interface BitrixDealFields {
   COMMENTS?: string;
   SOURCE_ID?: string;
   SOURCE_DESCRIPTION?: string;
+  DATE_CREATE?: string;
 
   [key: `UF_${string}`]: string | number | undefined | number[] | string[] | boolean;
 }
@@ -401,3 +415,12 @@ export interface BitrixUserField extends BitrixUserFieldFields {
 export interface GetUserFieldResponse {
   result: BitrixUserField;
 }
+
+export type BitrixListResponse<T> = {
+  result: T[];
+  total: number;
+  next?: number;
+  time: {
+    /* ... */
+  };
+};
