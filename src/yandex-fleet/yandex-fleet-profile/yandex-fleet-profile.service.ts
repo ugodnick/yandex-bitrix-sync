@@ -6,6 +6,7 @@ import {
   BITRIX_DICT,
   BITRIX_FIELDS,
   BITRIX_TO_YANDEX_PARK,
+  BitrixContactFields,
   BitrixDealFields,
   YANDEX_TO_BITRIX_PARK,
 } from '../../bitrix/bitrix.type';
@@ -193,6 +194,7 @@ export class YandexFleetProfileService {
     lastOrderDate: Date | null;
     firstOrderDate: Date | null;
     hiredAt: Date;
+    existingContactId?: number;
   }): Promise<void> {
     const {
       parkId,
@@ -204,6 +206,7 @@ export class YandexFleetProfileService {
       lastOrderDate,
       firstOrderDate,
       hiredAt,
+      existingContactId,
     } = params;
 
     const bitrixDispatcherId = YANDEX_TO_BITRIX_PARK[parkId];
@@ -213,11 +216,19 @@ export class YandexFleetProfileService {
     }
 
     const flat = this.extractFlatFields(driverProfile, driverCar, lastOrderDate, firstOrderDate);
-
     const contactPayload = this.buildContactPayload(driverProfile);
     const dealPayload = this.buildDealPayload(parkId, driverProfile, driverCar, true);
 
-    const contactId = await this.bitrixService.createContact(contactPayload);
+    let contactId: number;
+    if (existingContactId) {
+      await this.bitrixService.updateContact(String(existingContactId), contactPayload);
+      contactId = existingContactId;
+      console.log(
+        `[YandexFleetProfileService] Используем существующий контакт ${contactId}, создаём для него сделку.`,
+      );
+    } else {
+      contactId = await this.bitrixService.createContact(contactPayload);
+    }
 
     const dealId = await this.bitrixService.createDeal({
       STAGE_ID: stage,
@@ -242,7 +253,9 @@ export class YandexFleetProfileService {
       ...flat,
     });
 
-    console.log(`[YandexFleetProfileService] Создан Контакт (${contactId}) и Сделка (${dealId}).`);
+    console.log(
+      `[YandexFleetProfileService] Создана Сделка (${dealId}) для контакта (${contactId}).`,
+    );
   }
 
   private async updateProfile(params: {
@@ -314,14 +327,22 @@ export class YandexFleetProfileService {
       driverProfile.person.driver_license.country = undefined;
     }
 
+    let existingContactId: number | undefined;
+
     if (!localState) {
-      localState = await this.findAndLinkExistingBitrixProfile(
+      const result = await this.findAndLinkExistingBitrixProfile(
         parkId,
         profileId,
         driver,
         driverProfile,
         driverCar,
       );
+
+      if (result.kind === 'linked') {
+        localState = result.state;
+      } else if (result.kind === 'contact-only') {
+        existingContactId = result.contactId;
+      }
     }
 
     const hiredAt = new Date(driverProfile.profile.hire_date || driver.driver_profile.created_date);
@@ -351,7 +372,11 @@ export class YandexFleetProfileService {
     const currentHash = calculateDriverHash(driverProfile, driverCar, stage);
 
     if (!localState) {
-      console.log(`[YandexFleetProfileService] Найден новый водитель: ${profileId}. Создаем...`);
+      console.log(
+        existingContactId
+          ? `[YandexFleetProfileService] Создаём сделку для существующего контакта ${existingContactId}, профиль ${profileId}.`
+          : `[YandexFleetProfileService] Найден новый водитель: ${profileId}. Создаём...`,
+      );
 
       await this.createProfile({
         parkId,
@@ -363,6 +388,7 @@ export class YandexFleetProfileService {
         lastOrderDate,
         firstOrderDate,
         hiredAt,
+        existingContactId,
       });
 
       return;
@@ -420,7 +446,13 @@ export class YandexFleetProfileService {
     driver: YandexFleetDriverProfileItem,
     driverProfile: YandexFleetDriverProfile,
     driverCar: YandexFleetVehicleData | undefined,
-  ): Promise<YandexFleetProfileEntity | null> {
+  ): Promise<
+    | { kind: 'linked'; state: YandexFleetProfileEntity }
+    | { kind: 'contact-only'; contactId: number }
+    | { kind: 'none' }
+  > {
+    const category = getBitrixCategory(parkId);
+
     const contactArrays = await Promise.all(
       driver.driver_profile.phones.map((phone) => this.bitrixService.getContactsByPhone(phone)),
     );
@@ -434,12 +466,16 @@ export class YandexFleetProfileService {
       ).values(),
     );
 
-    const dealResults = await Promise.all(
-      uniqueContacts.map((c) => this.bitrixService.getLatestDealByContact(c.ID!)),
-    );
-    const deals = dealResults.filter((d): d is BitrixDealFields => !!d);
+    if (uniqueContacts.length === 0) return { kind: 'none' };
 
-    let matchedDeal = deals.find((deal) => {
+    const best = await this.pickBestContact(uniqueContacts, category.Duplicates);
+    if (!best) return { kind: 'none' };
+
+    const { contact, deals } = best;
+
+    const candidateDeals = deals.filter((d) => d.STAGE_ID !== category.Duplicates);
+
+    let matchedDeal = candidateDeals.find((deal) => {
       const dealProfileId = deal[BITRIX_FIELDS.PROFILE_ID]
         ? String(deal[BITRIX_FIELDS.PROFILE_ID])
         : undefined;
@@ -453,20 +489,19 @@ export class YandexFleetProfileService {
       return dealProfileId === profileId || BITRIX_TO_YANDEX_PARK[dispatcherId] === parkId;
     });
 
-    matchedDeal ??= deals.filter(
+    matchedDeal ??= candidateDeals.find(
       (d) => !d[BITRIX_FIELDS.DISPATCHER] && !d[BITRIX_FIELDS.PROFILE_ID],
-    )[0];
+    );
 
     if (matchedDeal) {
       const stage = matchedDeal.STAGE_ID;
-
       const hireDateRaw = matchedDeal[BITRIX_FIELDS.HIRE_DATE];
       const hiredAt =
         (hireDateRaw ? String(hireDateRaw) : undefined) ??
         matchedDeal.DATE_CREATE ??
         new Date().toISOString();
 
-      return await this.yandexFleetProfileRepository.save({
+      const state = await this.yandexFleetProfileRepository.save({
         yandexProfileId: profileId,
         parkId,
         bitrixStageId: stage,
@@ -484,8 +519,33 @@ export class YandexFleetProfileService {
         workRuleId: driverProfile.account.work_rule_id,
         vehicleType: mapVehicleTypeName(driverCar),
       });
+
+      return { kind: 'linked', state };
     }
 
-    return null;
+    return { kind: 'contact-only', contactId: Number(contact.ID) };
+  }
+
+  private async pickBestContact(
+    contacts: BitrixContactFields[],
+    duplicatesStage: string,
+  ): Promise<{ contact: BitrixContactFields; deals: BitrixDealFields[] } | null> {
+    if (contacts.length === 0) return null;
+
+    const contactsWithDeals = await Promise.all(
+      contacts.map(async (contact) => {
+        const allDeals = await this.bitrixService.getDealsByContact(contact.ID!);
+
+        const validDeals = allDeals.filter((d) => d.STAGE_ID !== duplicatesStage);
+        return { contact, deals: allDeals, validDealsCount: validDeals.length };
+      }),
+    );
+
+    const usable = contactsWithDeals.filter((c) => c.validDealsCount > 0);
+    const pool = usable.length > 0 ? usable : contactsWithDeals;
+
+    pool.sort((a, b) => b.validDealsCount - a.validDealsCount);
+
+    return { contact: pool[0].contact, deals: pool[0].deals };
   }
 }

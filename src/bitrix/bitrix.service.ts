@@ -165,18 +165,30 @@ export class BitrixService {
     return data.result;
   }
 
-  async getLatestDealByContact(contactId: string | number): Promise<BitrixDealFields | null> {
+  async getDealsByContact(contactId: string | number): Promise<BitrixDealFields[]> {
     try {
-      const response = await this.client.get('crm.deal.list.json', {
-        params: {
-          filter: { CONTACT_ID: contactId, CATEGORY_ID: BitrixDealCategory.YANDEX_DELIVERY },
-          order: { ID: 'DESC' },
-          select: ['*', 'UF_*'],
-        },
-      });
+      const allDeals: BitrixDealFields[] = [];
+      let start = 0;
 
-      const deals = response.data.result;
-      return deals && deals.length > 0 ? deals[0] : null;
+      while (true) {
+        const response = await this.client.get('crm.deal.list.json', {
+          params: {
+            filter: { CONTACT_ID: contactId, CATEGORY_ID: BitrixDealCategory.YANDEX_DELIVERY },
+            order: { ID: 'DESC' },
+            select: ['*', 'UF_*'],
+            start,
+          },
+        });
+
+        const deals: BitrixDealFields[] = response.data.result ?? [];
+        allDeals.push(...deals);
+
+        const next = response.data.next;
+        if (typeof next !== 'number') break;
+        start = next;
+      }
+
+      return allDeals;
     } catch (error) {
       throw buildError(error, BitrixService.name);
     }
