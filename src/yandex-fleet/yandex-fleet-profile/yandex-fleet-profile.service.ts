@@ -459,8 +459,14 @@ export class YandexFleetProfileService {
   > {
     const category = getBitrixCategory(parkId);
 
+    const phones = Array.from(
+      new Set(
+        [...driver.driver_profile.phones, driverProfile.person.contact_info.phone].filter(Boolean),
+      ),
+    );
+
     const contactArrays = await Promise.all(
-      driver.driver_profile.phones.map((phone) => this.bitrixService.getContactsByPhone(phone)),
+      phones.map((phone) => this.bitrixService.getContactsByPhone(phone)),
     );
 
     const uniqueContacts = Array.from(
@@ -478,26 +484,60 @@ export class YandexFleetProfileService {
     if (!best) return { kind: 'none' };
 
     const { contact, deals } = best;
-
     const candidateDeals = deals.filter((d) => d.STAGE_ID !== category.Duplicates);
 
-    let matchedDeal = candidateDeals.find((deal) => {
+    const getDispatcherId = (deal: BitrixDealFields): string => {
+      const field = deal[BITRIX_FIELDS.DISPATCHER];
+      if (!field) return '';
+      return Array.isArray(field) && field.length > 0 ? String(field[0]) : String(field);
+    };
+
+    let matchedDeal: BitrixDealFields | undefined;
+
+    for (const deal of candidateDeals) {
       const dealProfileId = deal[BITRIX_FIELDS.PROFILE_ID]
         ? String(deal[BITRIX_FIELDS.PROFILE_ID])
         : undefined;
-      const bitrixDispatcherField = deal[BITRIX_FIELDS.DISPATCHER];
-      const dispatcherId = bitrixDispatcherField
-        ? Array.isArray(bitrixDispatcherField) && bitrixDispatcherField.length > 0
-          ? String(bitrixDispatcherField[0])
-          : String(bitrixDispatcherField)
-        : '';
 
-      return dealProfileId === profileId || BITRIX_TO_YANDEX_PARK[dispatcherId] === parkId;
-    });
+      if (dealProfileId === profileId) {
+        matchedDeal = deal;
+        break;
+      }
+    }
 
-    matchedDeal ??= candidateDeals.find(
-      (d) => !d[BITRIX_FIELDS.DISPATCHER] && !d[BITRIX_FIELDS.PROFILE_ID],
-    );
+    if (!matchedDeal) {
+      for (const deal of candidateDeals) {
+        const dispatcherId = getDispatcherId(deal);
+        const dealProfileId = deal[BITRIX_FIELDS.PROFILE_ID]
+          ? String(deal[BITRIX_FIELDS.PROFILE_ID])
+          : undefined;
+
+        if (BITRIX_TO_YANDEX_PARK[dispatcherId] !== parkId) continue;
+        if (dealProfileId && dealProfileId !== profileId) continue;
+
+        const alreadyLinked = await this.yandexFleetProfileRepository.findOneBy({
+          bitrixDealId: String(deal.ID),
+        });
+        if (alreadyLinked && alreadyLinked.yandexProfileId !== profileId) continue;
+
+        matchedDeal = deal;
+        break;
+      }
+    }
+
+    if (!matchedDeal) {
+      for (const deal of candidateDeals) {
+        if (deal[BITRIX_FIELDS.DISPATCHER] || deal[BITRIX_FIELDS.PROFILE_ID]) continue;
+
+        const alreadyLinked = await this.yandexFleetProfileRepository.findOneBy({
+          bitrixDealId: String(deal.ID),
+        });
+        if (alreadyLinked && alreadyLinked.yandexProfileId !== profileId) continue;
+
+        matchedDeal = deal;
+        break;
+      }
+    }
 
     if (matchedDeal) {
       const stage = matchedDeal.STAGE_ID;
