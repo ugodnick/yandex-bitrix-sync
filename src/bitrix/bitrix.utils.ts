@@ -241,7 +241,9 @@ export const calculateDriverHash = (deal: BitrixDealFields, contact: BitrixConta
     lastName: contact.LAST_NAME,
     middleName: contact.SECOND_NAME,
     employmentType: mapBitrixEmploymentTypeToYandex(deal[BITRIX_FIELDS.EMPLOYMENT_TYPE]),
-    address: String(deal[BITRIX_FIELDS.ADDRESS_DISP]).split('|')[0].trim(),
+    address: deal[BITRIX_FIELDS.ADDRESS_DISP]
+      ? String(deal[BITRIX_FIELDS.ADDRESS_DISP]).split('|')[0].trim()
+      : undefined,
     comment: deal.COMMENTS ?? undefined,
 
     balanceLimit: deal[BITRIX_FIELDS.BALANCE_LIMIT],
@@ -252,7 +254,7 @@ export const calculateDriverHash = (deal: BitrixDealFields, contact: BitrixConta
     dlIssueDate: formatDateForYandex(String(deal[BITRIX_FIELDS.DL_ISSUE_DATE] || '')) || undefined,
     dlExpiryDate:
       formatDateForYandex(String(deal[BITRIX_FIELDS.DL_EXPIRY_DATE] || '')) || undefined,
-    dlCountry: mapBitrixCountryToYandex(deal[BITRIX_FIELDS.DL_COUNTRY_ISSUED]),
+    // dlCountry: mapBitrixCountryToYandex(deal[BITRIX_FIELDS.DL_COUNTRY_ISSUED]),
     dlBirthdate: formatDateForYandex(String(deal[BITRIX_FIELDS.BIRTH_DATE] || '')) || undefined,
 
     carBrand: deal[BITRIX_FIELDS.BRAND] ? String(deal[BITRIX_FIELDS.BRAND]) : undefined,

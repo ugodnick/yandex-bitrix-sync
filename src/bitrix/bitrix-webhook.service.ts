@@ -30,6 +30,7 @@ import {
   BITRIX_TO_YANDEX_PARK,
   BitrixContactFields,
   BitrixCrmWebhookBody,
+  BitrixDealCategory,
   BitrixDealFields,
 } from './bitrix.type';
 import { BitrixService } from './bitrix.service';
@@ -61,6 +62,10 @@ export class BitrixWebhookService {
 
   private async syncDealToYandex(dealId: string): Promise<void> {
     const deal = await this.bitrixService.getDeal(dealId);
+
+    const category = deal.CATEGORY_ID;
+
+    if (!category || category !== BitrixDealCategory.YANDEX_DELIVERY) return;
 
     const contactId = deal.CONTACT_ID;
     if (!contactId) return;

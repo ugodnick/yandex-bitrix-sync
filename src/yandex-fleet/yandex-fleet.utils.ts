@@ -98,7 +98,7 @@ export const mapFuelType = (type?: FuelType) => {
 export const mapCarOwnership = (
   car: YandexFleetVehicleData | undefined,
 ): (typeof BITRIX_DICT.CAR_OWNER)[keyof typeof BITRIX_DICT.CAR_OWNER] => {
-  if (!car) return BITRIX_DICT.CAR_OWNER.OTHER;
+  if (!car || !car.vehicle_specifications.vin) return BITRIX_DICT.CAR_OWNER.OTHER;
 
   return car.park_profile.is_park_property ? BITRIX_DICT.CAR_OWNER.PARK : BITRIX_DICT.CAR_OWNER.OWN;
 };
@@ -183,7 +183,7 @@ export function calculateDriverHash(
     dlNumber: dl?.number,
     dlIssueDate: dl?.issue_date,
     dlExpiryDate: dl?.expiry_date,
-    dlCountry: dl?.country,
+    // dlCountry: dl?.country,
     dlBirthdate: dl?.birth_date,
 
     // Автомобиль — идентификация

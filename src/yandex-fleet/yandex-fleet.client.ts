@@ -1,7 +1,7 @@
 import axios, { InternalAxiosRequestConfig } from 'axios';
 
 const ENDPOINT_LIMITS: { pattern: RegExp; minInterval: number }[] = [
-  { pattern: /\/v1\/parks\/orders\/list/, minInterval: 2500 },
+  { pattern: /\/v1\/parks\/orders\/list/, minInterval: 3000 },
   { pattern: /\/v1\/parks\/driver-profiles\/list/, minInterval: 400 },
   { pattern: /\/v2\/parks\/vehicles\/car/, minInterval: 300 },
   { pattern: /\/v2\/parks\/contractors\/driver-profile/, minInterval: 300 },

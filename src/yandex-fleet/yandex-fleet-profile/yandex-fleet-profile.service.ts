@@ -48,7 +48,7 @@ export class YandexFleetProfileService {
     console.log(`[YandexFleetProfileService] Запуск поллинга профилей для парка: ${yandexParkId}`);
     try {
       let offset = 0;
-      const limit = 100;
+      const limit = 25;
       let total = 1;
 
       while (offset < total) {

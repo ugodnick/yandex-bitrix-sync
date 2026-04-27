@@ -1,10 +1,10 @@
 export type BitrixYesOrNoType = 'Y' | 'N';
 
 export enum BitrixDealCategory {
-  BLOCK = 1,
-  YANDEX_DELIVERY = 3,
-  YANDEX_TAXI = 5,
-  YANDEX_EAT = 7,
+  BLOCK = '1',
+  YANDEX_DELIVERY = '3',
+  YANDEX_TAXI = '5',
+  YANDEX_EAT = '7',
 }
 
 export const BITRIX_CATEGORY_STAGE = {
