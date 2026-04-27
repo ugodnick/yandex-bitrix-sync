@@ -168,6 +168,15 @@ export class BitrixWebhookService {
           yandexProfileId,
           updatedProfile,
         );
+
+        await this.saveLocalState(
+          yandexProfileId,
+          targetYandexParkId,
+          contactId,
+          dealId,
+          deal,
+          contactData,
+        );
       }
     }
 
@@ -176,15 +185,6 @@ export class BitrixWebhookService {
     //     [BITRIX_FIELDS.PROFILE_ID]: yandexProfileId,
     //   });
     // }
-
-    await this.saveLocalState(
-      yandexProfileId!,
-      targetYandexParkId,
-      contactId,
-      dealId,
-      deal,
-      contactData,
-    );
   }
 
   // private async syncContactToYandex(contactId: string): Promise<void> {

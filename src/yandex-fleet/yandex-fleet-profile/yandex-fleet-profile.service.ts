@@ -110,6 +110,7 @@ export class YandexFleetProfileService {
   }
 
   private buildDealPayload(
+    profileId: string,
     parkId: string,
     driverProfile: YandexFleetDriverProfile,
     driverCar: YandexFleetVehicleData | undefined,
@@ -181,6 +182,9 @@ export class YandexFleetProfileService {
         person.driver_license_experience?.total_since_date,
       ),
       [BITRIX_FIELDS.BALANCE_LIMIT]: driverProfile.account.balance_limit,
+      [BITRIX_FIELDS.PROFILE_ID]: profileId,
+      [BITRIX_FIELDS.PROFILE_LINK]:
+        'https://fleet.yandex.ru/contractors/' + profileId + '/details?park_id=' + parkId,
     });
   }
 
@@ -217,7 +221,7 @@ export class YandexFleetProfileService {
 
     const flat = this.extractFlatFields(driverProfile, driverCar, lastOrderDate, firstOrderDate);
     const contactPayload = this.buildContactPayload(driverProfile);
-    const dealPayload = this.buildDealPayload(parkId, driverProfile, driverCar, true);
+    const dealPayload = this.buildDealPayload(profileId, parkId, driverProfile, driverCar, true);
 
     let contactId: number;
     if (existingContactId) {
@@ -236,9 +240,6 @@ export class YandexFleetProfileService {
       CONTACT_ID: contactId,
       CATEGORY_ID: mapCategory(parkId),
       [BITRIX_FIELDS.DISPATCHER]: bitrixDispatcherId,
-      [BITRIX_FIELDS.PROFILE_ID]: profileId,
-      [BITRIX_FIELDS.PROFILE_LINK]:
-        'https://fleet.yandex.ru/contractors/' + profileId + '/details?park_id=' + parkId,
       ...dealPayload,
     });
 
@@ -282,7 +283,7 @@ export class YandexFleetProfileService {
     } = params;
 
     const contactPayload = this.buildContactPayload(driverProfile);
-    const dealPayload = this.buildDealPayload(parkId, driverProfile, driverCar, false);
+    const dealPayload = this.buildDealPayload(profileId, parkId, driverProfile, driverCar, false);
     dealPayload.STAGE_ID = stage;
 
     if (localState.bitrixContactId) {
