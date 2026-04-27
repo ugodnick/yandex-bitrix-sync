@@ -68,11 +68,6 @@ export class YandexFleetProfileService {
         );
         for (const driver of drivers) {
           try {
-            const exist = await this.yandexFleetProfileRepository.findOne({
-              where: { yandexProfileId: driver.driver_profile.id },
-            });
-            if (exist) continue; // temp for fast first sync
-
             await this.processYandexProfile(yandexParkId, driver.driver_profile.id, driver);
           } catch (error) {
             console.error(
@@ -325,7 +320,7 @@ export class YandexFleetProfileService {
       category.Pause,
     ];
     if (localState && stagesToSkip.includes(localState.bitrixStageId)) return;
-
+    if (localState) return; // temp for fast first sync
     let driverCar = undefined;
     if (driver.car?.id) {
       driverCar = await this.yandexService.getCar(parkId, driver.car.id);

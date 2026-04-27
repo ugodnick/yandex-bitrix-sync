@@ -6,6 +6,7 @@ import {
   calculateDriverHash,
   formatDateForYandex,
   formatPhoneNumber,
+  getBitrixCategory,
   mapBitrixAmenitiesToYandex,
   mapBitrixColorToYandex,
   mapBitrixCountryToYandex,
@@ -134,6 +135,11 @@ export class BitrixWebhookService {
       const localProfile = await this.yandexFleetProfileRepository.findOne({
         where: { yandexProfileId },
       });
+
+      const category = getBitrixCategory(targetYandexParkId);
+      const stagesToSkip: readonly string[] = [category.Archive, category.Refusal];
+
+      if (localProfile && stagesToSkip.includes(localProfile.bitrixStageId)) return;
 
       if (localProfile && localProfile.dataHash !== calculateDriverHash(deal, contactData)) {
         const currentProfile = await this.yandexFleetService.getProfile(
