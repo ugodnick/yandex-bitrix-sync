@@ -217,18 +217,55 @@ export function formatDate(date: Date | string): string {
   return d.toLocaleDateString('ru-RU');
 }
 
-export type ProfileStatus = 'Новый' | 'Активный' | 'Отток' | 'Архив';
+export enum ProfileStatus {
+  New = 'Новый',
+  Active = 'Активный',
+  Outflow = 'Отток',
+  Cold = 'Холод',
+  Pause = 'Пауза',
+  Archive = 'Архив',
+  Unknown = 'Неизвестно',
+}
 
-export function stageToStatus(stageId: string): ProfileStatus | 'Неизвестно' {
-  const category = BITRIX_CATEGORY_STAGE[BitrixDealCategory.YANDEX_DELIVERY];
+export function stageToStatus(stageId: string): ProfileStatus {
+  const stages = BITRIX_CATEGORY_STAGE[BitrixDealCategory.YANDEX_DELIVERY];
 
-  if (stageId === category.Archive) return 'Архив';
-  if (stageId === category.Outflow) return 'Отток';
-  if (stageId === category.OutputFor1Order) return 'Новый';
-  if (stageId === category.Orders25) return 'Активный';
-  if (stageId === category.Working) return 'Активный';
+  switch (stageId) {
+    case stages.NotProcessed:
+    case stages.NewLead:
+    case stages.TakenToWork:
+    case stages.Ndz:
+    case stages.Thinking:
+    case stages.DocumentCollection:
+    case stages.TransferToSmz:
+    case stages.OutputFor1Order:
+    case stages.NdzNotComeOut:
+      return ProfileStatus.New;
 
-  return 'Активный';
+    case stages.Orders25:
+    case stages.Working:
+      return ProfileStatus.Active;
+
+    case stages.Outflow:
+      return ProfileStatus.Outflow;
+
+    case stages.Cold:
+      return ProfileStatus.Cold;
+
+    case stages.Pause:
+      return ProfileStatus.Pause;
+
+    case stages.Archive:
+    case stages.Cps:
+    case stages.Duplicates:
+    case stages.DoNotClick:
+    case stages.SpamAdvertisingIlliquid:
+    case stages.Refusal:
+      return ProfileStatus.Archive;
+
+    default:
+      return ProfileStatus.Unknown;
+  }
 }
 
 export const mapVehicleTypeName = (car: YandexFleetVehicleData | undefined): string => {

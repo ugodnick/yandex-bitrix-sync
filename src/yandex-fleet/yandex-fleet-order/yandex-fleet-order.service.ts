@@ -1,6 +1,5 @@
 import { LessThan, Repository } from 'typeorm';
 import { YandexFleetService } from '../yandex-fleet.service';
-import { YandexFleetProfileEntity } from '../yandex-fleet-profile/yandex-fleet-profile.entity';
 import { BITRIX_CATEGORY_STAGE, BitrixDealCategory } from '../../bitrix/bitrix.type';
 import { YandexFleetOrder } from '../yandex-fleet.type';
 import { YandexFleetOrderEntity } from './yandex-fleet-order.entity';
@@ -11,39 +10,32 @@ export class YandexFleetOrderService {
     private readonly yandexFleetService: YandexFleetService,
   ) {}
 
-  public resolveNextStage(
-    orders: YandexFleetOrder[],
-    profile: YandexFleetProfileEntity | null,
-  ): string | null {
+  public resolveNextStage(orders: YandexFleetOrder[]): string | null {
     const stages = BITRIX_CATEGORY_STAGE[BitrixDealCategory.YANDEX_DELIVERY];
 
-    if (this.isOutflow(orders)) {
-      return stages.Outflow;
-    }
+    const activityStage = this.resolveActivityStage(orders, stages);
+    if (activityStage) return activityStage;
 
-    if (
-      (profile && profile.bitrixStageId === stages.OutputFor1Order) ||
-      (orders.length > 0 && !profile)
-    ) {
-      return stages.Orders25;
-    }
-
-    if (
-      (profile && profile.bitrixStageId === stages.Orders25) ||
-      (orders.length > 25 && !profile)
-    ) {
-      return stages.Working;
-    }
+    if (orders.length > 25) return stages.Working;
+    if (orders.length > 0) return stages.Orders25;
 
     return null;
   }
 
-  private isOutflow(orders: YandexFleetOrder[]): boolean {
-    if (orders.length === 0) return true;
-    const lastOrderDate = new Date(orders[0].created_at);
-    const weekAgo = new Date();
-    weekAgo.setDate(weekAgo.getDate() - 7);
-    return lastOrderDate < weekAgo;
+  private resolveActivityStage(
+    orders: YandexFleetOrder[],
+    stages: (typeof BITRIX_CATEGORY_STAGE)[BitrixDealCategory.YANDEX_DELIVERY],
+  ): string | null {
+    if (orders.length === 0) return null;
+
+    const lastOrderDate = new Date(orders[0].booked_at);
+    const now = new Date();
+    const daysSinceLastOrder = (now.getTime() - lastOrderDate.getTime()) / (1000 * 60 * 60 * 24);
+
+    if (daysSinceLastOrder >= 30) return stages.Cold;
+    if (daysSinceLastOrder >= 7) return stages.Outflow;
+
+    return null;
   }
 
   async syncParkOrders(parkId: string): Promise<void> {

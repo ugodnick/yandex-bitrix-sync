@@ -312,7 +312,12 @@ export class YandexFleetProfileService {
     });
 
     const category = getBitrixCategory(parkId);
-    const stagesToSkip: readonly string[] = [category.Duplicates];
+    const stagesToSkip: readonly string[] = [
+      category.Duplicates,
+      category.Refusal,
+      category.SpamAdvertisingIlliquid,
+      category.Pause,
+    ];
     if (localState && stagesToSkip.includes(localState.bitrixStageId)) return;
 
     let driverCar = undefined;
@@ -351,7 +356,7 @@ export class YandexFleetProfileService {
     const monthAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
 
     let stage: string = localState ? localState.bitrixStageId : category.NotProcessed;
-    const nextStage = this.yandexFleetOrderService.resolveNextStage(lastOrders, localState);
+    const nextStage = this.yandexFleetOrderService.resolveNextStage(lastOrders);
 
     if (
       driver.driver_profile.work_status &&
