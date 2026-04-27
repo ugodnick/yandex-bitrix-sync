@@ -5,6 +5,7 @@ import { YandexFleetProfileEntity } from './yandex-fleet-profile.entity';
 import {
   BITRIX_DICT,
   BITRIX_FIELDS,
+  BITRIX_TO_YANDEX_PARK,
   BitrixDealFields,
   YANDEX_TO_BITRIX_PARK,
 } from '../../bitrix/bitrix.type';
@@ -442,10 +443,14 @@ export class YandexFleetProfileService {
       const dealProfileId = deal[BITRIX_FIELDS.PROFILE_ID]
         ? String(deal[BITRIX_FIELDS.PROFILE_ID])
         : undefined;
-      const dispatcherId = deal[BITRIX_FIELDS.DISPATCHER]
-        ? String(deal[BITRIX_FIELDS.DISPATCHER])
-        : undefined;
-      return dealProfileId === profileId || dispatcherId === parkId;
+      const bitrixDispatcherField = deal[BITRIX_FIELDS.DISPATCHER];
+      const dispatcherId = bitrixDispatcherField
+        ? Array.isArray(bitrixDispatcherField) && bitrixDispatcherField.length > 0
+          ? String(bitrixDispatcherField[0])
+          : String(bitrixDispatcherField)
+        : '';
+
+      return dealProfileId === profileId || BITRIX_TO_YANDEX_PARK[dispatcherId] === parkId;
     });
 
     matchedDeal ??= deals.filter(

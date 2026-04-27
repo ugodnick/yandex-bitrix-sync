@@ -70,7 +70,13 @@ export class BitrixWebhookService {
     const contactId = deal.CONTACT_ID;
     if (!contactId) return;
 
-    const dispatcherId = String(deal[BITRIX_FIELDS.DISPATCHER]);
+    const bitrixDispatcherField = deal[BITRIX_FIELDS.DISPATCHER];
+    const dispatcherId = bitrixDispatcherField
+      ? Array.isArray(bitrixDispatcherField) && bitrixDispatcherField.length > 0
+        ? String(bitrixDispatcherField[0])
+        : String(bitrixDispatcherField)
+      : '';
+
     const targetYandexParkId = BITRIX_TO_YANDEX_PARK[dispatcherId];
     if (!targetYandexParkId) return;
 
