@@ -2,7 +2,7 @@ module.exports = {
   apps: [
     {
       name: 'yandex-bitrix-sync-app',
-      script: 'build/index.js',
+      script: 'dist/index.js',
       exec_mode: 'fork',
       instances: 1,
       out_file: './logs/out.log',
