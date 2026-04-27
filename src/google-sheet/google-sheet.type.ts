@@ -14,6 +14,7 @@ export enum ContractorsColumn {
   WorkConditions = 'Условия работы',
   MovementType = 'Тип передвижения',
   Status = 'Статус',
+  Park = 'Парк',
 }
 
 export enum OrdersColumn {
@@ -41,6 +42,7 @@ export const SHEET_COLUMN_ORDER: {
     ContractorsColumn.WorkConditions,
     ContractorsColumn.MovementType,
     ContractorsColumn.Status,
+    ContractorsColumn.Park,
   ],
   [SheetName.Orders]: [OrdersColumn.ContractorId, OrdersColumn.OrderDate, OrdersColumn.Status],
 };

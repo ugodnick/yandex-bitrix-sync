@@ -7,7 +7,7 @@ import { loadConfig } from './app.config';
 import { Container } from './container';
 import { YandexFleetService } from './yandex-fleet/yandex-fleet.service';
 import { BitrixService } from './bitrix/bitrix.service';
-import { BitrixCrmWebhookBody, YANDEX_TO_BITRIX_PARK } from './bitrix/bitrix.type';
+import { BitrixCrmWebhookBody, YANDEX_PARKS_NAMES } from './bitrix/bitrix.type';
 import { YandexFleetProfileEntity } from './yandex-fleet/yandex-fleet-profile/yandex-fleet-profile.entity';
 import { YandexFleetProfileService } from './yandex-fleet/yandex-fleet-profile/yandex-fleet-profile.service';
 import { YandexFleetWorkRuleEntity } from './yandex-fleet/yandex-fleet-work-rule/yandex-fleet-work-rule.entity';
@@ -27,7 +27,7 @@ const container = new Container();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const yandexParkIds = Object.keys(YANDEX_TO_BITRIX_PARK);
+const yandexParkIds = Object.keys(YANDEX_PARKS_NAMES);
 
 async function initDatabase(): Promise<DataSource> {
   const database = await AppDataSource.initialize();

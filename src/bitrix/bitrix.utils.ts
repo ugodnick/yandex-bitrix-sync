@@ -6,6 +6,7 @@ import {
   BitrixDealCategory,
   BitrixDealFields,
   YANDEX_DELIVERY_PARKS,
+  YANDEX_PARKS_NAMES,
   YANDEX_TAXI_PARKS,
 } from './bitrix.type';
 import crypto from 'crypto';
@@ -300,4 +301,14 @@ export const buildError = (error: unknown, service: string): Error => {
   } else {
     return new Error(String(error));
   }
+};
+
+export const mapParkName = (parkId: string) => {
+  const parkName = YANDEX_PARKS_NAMES[parkId];
+
+  if (!parkName) {
+    throw new Error(`No name with such park is provided. ParkId: ${parkId}`);
+  }
+
+  return parkName;
 };

@@ -273,6 +273,17 @@ export const YANDEX_DELIVERY_PARKS = [
   '9ac02ba7e5174c10b401cfb7dfdaa894',
 ];
 
+export const YANDEX_PARKS_NAMES: Record<string, string> = {
+  '30ca63b508454371b9deb252b3306083': 'ФИШТ (Я.Доставка Авто Владивосток)',
+  '89a42a3a9a964fff9c41fd076fd09c6c': 'ЭВЕРЕСТ (Я.Доставка Пеший Владивосток)',
+  bf157cfe3a914fda817b1d2dde37ada1: 'ДЖИМАРА (Я.Доставка Авто Хабаровск)',
+  '35c53a402f8b4f04a8806e68da798f20': 'МИЖИРГИ (Я.Доставка Пеший Хабаровск)',
+  c1af957f21b844868adc314f0e24e985: 'БЕЛУХА (Я.Доставка Пеший/Авто Уссурийск)',
+  '9ac02ba7e5174c10b401cfb7dfdaa894': 'ДАУТАЙ (Я.Доставка Пеший/Авто Благовещенск)',
+  '8b99022cd8a24f8782fc19feff7a45e2': 'ПРОФИЛОГИСТИК (Я.Доставка Пеший/Авто Саратов)',
+  '8ddb58b306774e458fc7d24203c36c14': 'АРКТУР (Я.Доставка Пеший/Авто Омск)',
+} as const;
+
 export const YANDEX_TAXI_PARKS = [''];
 
 export interface BitrixDealFields {

@@ -5,6 +5,7 @@ import { SheetName } from '../../google-sheet/google-sheet.type';
 import { formatDate, mapOrderStatusName, stageToStatus } from '../yandex-fleet.utils';
 import { YandexFleetWorkRuleEntity } from '../yandex-fleet-work-rule/yandex-fleet-work-rule.entity';
 import { YandexFleetOrderEntity } from '../yandex-fleet-order/yandex-fleet-order.entity';
+import { mapParkName } from '../../bitrix/bitrix.utils';
 
 export class YandexFleetSheetExportService {
   constructor(
@@ -44,7 +45,7 @@ export class YandexFleetSheetExportService {
           workRuleName = workRule.name;
         }
 
-        allRows.push(this.profileToRow(profile, workRuleName));
+        allRows.push(this.profileToRow(profile, workRuleName, mapParkName(profile.parkId)));
       }
 
       offset += BATCH_SIZE;
@@ -83,7 +84,7 @@ export class YandexFleetSheetExportService {
     await this.googleSheetsApiService.appendRawRows(SheetName.Orders, allRows);
   }
 
-  private profileToRow(p: YandexFleetProfileEntity, ruleName: string): string[] {
+  private profileToRow(p: YandexFleetProfileEntity, ruleName: string, parkName: string): string[] {
     console.log(p.yandexProfileId);
     console.log(p.firstOrderDate);
     return [
@@ -97,6 +98,7 @@ export class YandexFleetSheetExportService {
       ruleName,
       p.vehicleType ?? '',
       stageToStatus(p.bitrixStageId),
+      parkName,
     ];
   }
 
