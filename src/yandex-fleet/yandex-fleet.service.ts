@@ -13,6 +13,7 @@ import {
   YandexFleetUpdateCarRequest,
   YandexFleetCreateWalkCourier,
   YandexFleetCreateWalkSECourier,
+  YandexFleetSupplyHours,
 } from './yandex-fleet.type';
 import { YANDEX_TO_BITRIX_PARK } from '../bitrix/bitrix.type';
 import yandexApiClient from './yandex-fleet.client';
@@ -313,6 +314,31 @@ export class YandexFleetService {
         },
       );
       return response.data.id;
+    } catch (error: unknown) {
+      this.handleError(error);
+    }
+  }
+
+  async getDriverSupplyHours(
+    parkId: string,
+    contractorProfileId: string,
+    periodFrom: Date,
+    periodTo: Date,
+  ): Promise<YandexFleetSupplyHours> {
+    try {
+      const response = await this.client.get<YandexFleetSupplyHours>(
+        '/v2/parks/contractors/supply-hours',
+        {
+          params: {
+            contractor_profile_id: contractorProfileId,
+            period_from: periodFrom.toISOString(),
+            period_to: periodTo.toISOString(),
+          },
+          headers: this.getParkHeaders(parkId),
+        },
+      );
+
+      return response.data;
     } catch (error: unknown) {
       this.handleError(error);
     }

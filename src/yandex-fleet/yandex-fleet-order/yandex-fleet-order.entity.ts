@@ -21,6 +21,9 @@ export class YandexFleetOrderEntity {
   @Column({ type: 'datetime', name: 'booked_at' })
   bookedAt: Date;
 
+  @Column({ type: 'varchar', name: 'price', default: 'Неизвестно' })
+  price: string;
+
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 

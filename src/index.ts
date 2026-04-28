@@ -104,6 +104,7 @@ function initServices(database: DataSource): void {
         yandexFleetWorkRulesRepository,
         yandexFleetOrderRepository,
         container.get(GoogleSheetsAPIService),
+        container.get(YandexFleetService),
       ),
   );
 }
@@ -115,7 +116,7 @@ function scheduleGoogleSheetExport() {
     '55 10 * * *',
     async () => {
       if (isSyncing) {
-        console.log('[Export] Синхронизация активна, ждём...');
+        console.log('[scheduleGoogleSheetExport] Синхронизация активна, ждём...');
         return;
       }
       isSyncing = true;
@@ -128,7 +129,55 @@ function scheduleGoogleSheetExport() {
         const exportService = container.get(YandexFleetSheetExportService);
         await exportService.exportToGoogleSheets();
       } catch (error) {
-        console.error('[Cron] Ошибка экспорта:', error);
+        console.error('[scheduleGoogleSheetExport] Ошибка экспорта:', error);
+      } finally {
+        isSyncing = false;
+      }
+    },
+    { timezone: 'Asia/Vladivostok' },
+  );
+}
+
+function scheduleSupplyMonthGoogleSheetExport() {
+  let isSyncing = false;
+
+  cron.schedule(
+    '0 6 5 * *',
+    async () => {
+      if (isSyncing) {
+        console.log('[scheduleSupplyMonthGoogleSheetExport] Синхронизация активна, ждём...');
+        return;
+      }
+      isSyncing = true;
+      try {
+        const exportService = container.get(YandexFleetSheetExportService);
+        await exportService.exportSupplyHoursMonth();
+      } catch (error) {
+        console.error('[scheduleSupplyMonthGoogleSheetExport] Ошибка экспорта:', error);
+      } finally {
+        isSyncing = false;
+      }
+    },
+    { timezone: 'Asia/Vladivostok' },
+  );
+}
+
+function scheduleSupplyWeeklyGoogleSheetExport() {
+  let isSyncing = false;
+
+  cron.schedule(
+    '0 8 * * 2',
+    async () => {
+      if (isSyncing) {
+        console.log('[scheduleSupplyWeeklyGoogleSheetExport] Синхронизация активна, ждём...');
+        return;
+      }
+      isSyncing = true;
+      try {
+        const exportService = container.get(YandexFleetSheetExportService);
+        await exportService.exportSupplyWeekly();
+      } catch (error) {
+        console.error('[scheduleSupplyWeeklyGoogleSheetExport] Ошибка экспорта:', error);
       } finally {
         isSyncing = false;
       }
@@ -144,12 +193,13 @@ function scheduleBitrixProfilesSyncing() {
     '0 */24 * * *',
     async () => {
       if (isSyncing) {
-        console.log('[Cron] Предыдущая синхронизация еще не завершена. Пропускаем такт.');
+        console.log(
+          '[scheduleBitrixProfilesSyncing] Предыдущая синхронизация еще не завершена. Пропускаем такт.',
+        );
         return;
       }
 
       isSyncing = true;
-      console.log('[Cron] Запуск поллинга Яндекса...');
 
       try {
         const profileService = container.get(YandexFleetProfileService);
@@ -159,10 +209,8 @@ function scheduleBitrixProfilesSyncing() {
           await workRulesService.syncParkWorkRules(parkId);
           await profileService.syncProfiles(parkId);
         }
-
-        console.log('[Cron] Цикл поллинга завершен.');
       } catch (error) {
-        console.error('[Cron] Глобальная ошибка крона:', error);
+        console.error('[scheduleBitrixProfilesSyncing] Глобальная ошибка крона:', error);
       } finally {
         isSyncing = false;
       }
@@ -200,6 +248,8 @@ async function bootstrap() {
 
   scheduleGoogleSheetExport();
   scheduleBitrixProfilesSyncing();
+  scheduleSupplyMonthGoogleSheetExport();
+  scheduleSupplyWeeklyGoogleSheetExport();
 }
 
 bootstrap().catch(console.error);

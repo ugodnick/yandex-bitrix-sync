@@ -1,6 +1,8 @@
 export enum SheetName {
   Contractors = 'Исполнители',
   Orders = 'Заказы',
+  SupplyHoursMonth = 'Время на линии месяц',
+  SupplyWeekMonth = 'Время на линии неделя',
 }
 
 export enum ContractorsColumn {
@@ -21,11 +23,24 @@ export enum OrdersColumn {
   ContractorId = 'ID исполнителя',
   OrderDate = 'Дата заказа',
   Status = 'Статус',
+  Price = 'Стоимость заказа',
+}
+
+export enum SupplyHoursMonthColumn {
+  ContractorId = 'ID исполнителя',
+  SupplyHours = 'Время на линии',
+}
+
+export enum SupplyWeekMonthColumn {
+  ContractorId = 'ID исполнителя',
+  SupplyHours = 'Время на линии',
 }
 
 export type SheetColumnsMap = {
   [SheetName.Contractors]: ContractorsColumn;
   [SheetName.Orders]: OrdersColumn;
+  [SheetName.SupplyHoursMonth]: SupplyHoursMonthColumn;
+  [SheetName.SupplyWeekMonth]: SupplyWeekMonthColumn;
 };
 
 export const SHEET_COLUMN_ORDER: {
@@ -44,7 +59,20 @@ export const SHEET_COLUMN_ORDER: {
     ContractorsColumn.Status,
     ContractorsColumn.Park,
   ],
-  [SheetName.Orders]: [OrdersColumn.ContractorId, OrdersColumn.OrderDate, OrdersColumn.Status],
+  [SheetName.Orders]: [
+    OrdersColumn.ContractorId,
+    OrdersColumn.OrderDate,
+    OrdersColumn.Status,
+    OrdersColumn.Price,
+  ],
+  [SheetName.SupplyHoursMonth]: [
+    SupplyHoursMonthColumn.ContractorId,
+    SupplyHoursMonthColumn.SupplyHours,
+  ],
+  [SheetName.SupplyWeekMonth]: [
+    SupplyWeekMonthColumn.ContractorId,
+    SupplyWeekMonthColumn.SupplyHours,
+  ],
 };
 
 export type SheetRow<S extends SheetName> = Partial<

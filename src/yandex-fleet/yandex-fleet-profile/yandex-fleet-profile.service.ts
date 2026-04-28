@@ -227,9 +227,6 @@ export class YandexFleetProfileService {
     if (existingContactId) {
       await this.bitrixService.updateContact(String(existingContactId), contactPayload);
       contactId = existingContactId;
-      console.log(
-        `[YandexFleetProfileService] Используем существующий контакт ${contactId}, создаём для него сделку.`,
-      );
     } else {
       contactId = await this.bitrixService.createContact(contactPayload);
     }
@@ -253,10 +250,6 @@ export class YandexFleetProfileService {
       hiredAt,
       ...flat,
     });
-
-    console.log(
-      `[YandexFleetProfileService] Создана Сделка (${dealId}) для контакта (${contactId}).`,
-    );
   }
 
   private async updateProfile(params: {
@@ -299,8 +292,6 @@ export class YandexFleetProfileService {
     localState.dataHash = currentHash;
     localState.bitrixStageId = stage;
     await this.yandexFleetProfileRepository.save(localState);
-
-    console.log(`[YandexFleetProfileService] Успех! Обновлен профиль ${profileId}.`);
   }
 
   private async processYandexProfile(
@@ -320,7 +311,7 @@ export class YandexFleetProfileService {
       category.Pause,
     ];
     if (localState && stagesToSkip.includes(localState.bitrixStageId)) return;
-    if (localState) return; // temp for fast first sync
+
     let driverCar = undefined;
     if (driver.car?.id) {
       driverCar = await this.yandexService.getCar(parkId, driver.car.id);
@@ -353,37 +344,29 @@ export class YandexFleetProfileService {
 
     const hiredAt = new Date(driverProfile.profile.hire_date || driver.driver_profile.created_date);
     const lastOrders = await this.yandexService.getLastDriverOrders(parkId, profileId, hiredAt);
-    const now = new Date();
-    const monthAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
 
     let stage: string = localState ? localState.bitrixStageId : category.NotProcessed;
-    const nextStage = this.yandexFleetOrderService.resolveNextStage(lastOrders);
+    const nextStage = this.yandexFleetOrderService.resolveNextStage(lastOrders, hiredAt);
 
     if (
       driver.driver_profile.work_status &&
       driver.driver_profile.work_status !== DriverWorkStatus.Working
     ) {
       stage = category.Archive;
-    } else if (nextStage && hiredAt < monthAgo) {
+    } else if (nextStage) {
       stage = nextStage;
     }
 
     const lastOrderDate = lastOrders.length > 0 ? new Date(lastOrders[0].booked_at) : null;
     let firstOrderDate = localState?.firstOrderDate || null;
 
-    if (!firstOrderDate) {
+    if (!firstOrderDate && (!localState || localState.bitrixStageId !== category.Archive)) {
       firstOrderDate = await this.yandexService.getFirstOrderDate(parkId, profileId, hiredAt);
     }
 
     const currentHash = calculateDriverHash(driverProfile, driverCar, stage);
 
     if (!localState) {
-      console.log(
-        existingContactId
-          ? `[YandexFleetProfileService] Создаём сделку для существующего контакта ${existingContactId}, профиль ${profileId}.`
-          : `[YandexFleetProfileService] Найден новый водитель: ${profileId}. Создаём...`,
-      );
-
       await this.createProfile({
         parkId,
         profileId,
@@ -398,11 +381,8 @@ export class YandexFleetProfileService {
       });
 
       return;
-    }
-
-    if (localState.dataHash !== currentHash) {
-      console.log(`[YandexFleetProfileService] Изменения у водителя ${profileId}. Обновляем...`);
-
+      // } else if (localState.dataHash !== currentHash) {
+    } else {
       await this.updateProfile({
         parkId,
         profileId,
@@ -416,14 +396,15 @@ export class YandexFleetProfileService {
       });
 
       return;
-    } else if (
-      localState.lastOrderDate !== lastOrderDate ||
-      localState.firstOrderDate !== firstOrderDate
-    ) {
-      localState.lastOrderDate = lastOrderDate;
-      localState.firstOrderDate = firstOrderDate;
-      await this.yandexFleetProfileRepository.save(localState);
     }
+    // } else if (
+    //   localState.lastOrderDate !== lastOrderDate ||
+    //   localState.firstOrderDate !== firstOrderDate
+    // ) {
+    //   localState.lastOrderDate = lastOrderDate;
+    //   localState.firstOrderDate = firstOrderDate;
+    //   await this.yandexFleetProfileRepository.save(localState);
+    // }
   }
 
   private extractFlatFields(

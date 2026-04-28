@@ -590,3 +590,8 @@ export interface YandexFleetCreateCarCourier {
     partner: true;
   };
 }
+
+export interface YandexFleetSupplyHours {
+  supply_duration_seconds: number;
+  total_seconds: number;
+}

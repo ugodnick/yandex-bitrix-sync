@@ -10,10 +10,10 @@ export class YandexFleetOrderService {
     private readonly yandexFleetService: YandexFleetService,
   ) {}
 
-  public resolveNextStage(orders: YandexFleetOrder[]): string | null {
+  public resolveNextStage(orders: YandexFleetOrder[], hiredAt: Date): string | null {
     const stages = BITRIX_CATEGORY_STAGE[BitrixDealCategory.YANDEX_DELIVERY];
 
-    const activityStage = this.resolveActivityStage(orders, stages);
+    const activityStage = this.resolveActivityStage(orders, hiredAt, stages);
     if (activityStage) return activityStage;
 
     if (orders.length > 25) return stages.Working;
@@ -24,12 +24,18 @@ export class YandexFleetOrderService {
 
   private resolveActivityStage(
     orders: YandexFleetOrder[],
+    hiredAt: Date,
     stages: (typeof BITRIX_CATEGORY_STAGE)[BitrixDealCategory.YANDEX_DELIVERY],
   ): string | null {
-    if (orders.length === 0) return null;
-
-    const lastOrderDate = new Date(orders[0].booked_at);
     const now = new Date();
+
+    if (orders.length === 0) {
+      const daysSinceHired = (now.getTime() - hiredAt.getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSinceHired >= 30) return stages.Cold;
+      return null;
+    }
+
+    const lastOrderDate = new Date(orders[0].created_at);
     const daysSinceLastOrder = (now.getTime() - lastOrderDate.getTime()) / (1000 * 60 * 60 * 24);
 
     if (daysSinceLastOrder >= 30) return stages.Cold;
@@ -39,15 +45,21 @@ export class YandexFleetOrderService {
   }
 
   async syncParkOrders(parkId: string): Promise<void> {
-    const oneMonthAgo = new Date();
-    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+    const oneMonthAndWeekAgo = new Date();
+    oneMonthAndWeekAgo.setMonth(oneMonthAndWeekAgo.getMonth() - 1);
+    oneMonthAndWeekAgo.setDate(oneMonthAndWeekAgo.getDate() - 7);
     const now = new Date();
 
     let cursor: string | undefined = undefined;
     let totalSaved = 0;
 
     do {
-      const page = await this.yandexFleetService.getOrdersPage(parkId, oneMonthAgo, now, cursor);
+      const page = await this.yandexFleetService.getOrdersPage(
+        parkId,
+        oneMonthAndWeekAgo,
+        now,
+        cursor,
+      );
 
       if (page.orders.length > 0) {
         const entities = page.orders.map((o) => this.mapOrderToEntity(o, parkId));
@@ -59,7 +71,7 @@ export class YandexFleetOrderService {
     } while (cursor);
 
     await this.yandexFleetOrderRepository.delete({
-      bookedAt: LessThan(oneMonthAgo),
+      bookedAt: LessThan(oneMonthAndWeekAgo),
     });
 
     console.log(`[YandexFleetOrderService] Парк ${parkId}: сохранено ${totalSaved} заказов`);
@@ -72,6 +84,7 @@ export class YandexFleetOrderService {
       profileId: order.driver_profile.id,
       status: order.status,
       bookedAt: new Date(order.booked_at),
+      price: order.price,
     } as YandexFleetOrderEntity;
   }
 }

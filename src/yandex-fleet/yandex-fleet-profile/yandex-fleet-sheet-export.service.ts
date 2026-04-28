@@ -1,4 +1,4 @@
-import { MoreThan, Repository } from 'typeorm';
+import { In, MoreThan, Repository } from 'typeorm';
 import { YandexFleetProfileEntity } from './yandex-fleet-profile.entity';
 import { GoogleSheetsAPIService } from '../../google-sheet/google-sheet.service';
 import { SheetName } from '../../google-sheet/google-sheet.type';
@@ -6,6 +6,7 @@ import { formatDate, mapOrderStatusName, stageToStatus } from '../yandex-fleet.u
 import { YandexFleetWorkRuleEntity } from '../yandex-fleet-work-rule/yandex-fleet-work-rule.entity';
 import { YandexFleetOrderEntity } from '../yandex-fleet-order/yandex-fleet-order.entity';
 import { mapParkName } from '../../bitrix/bitrix.utils';
+import { YandexFleetService } from '../yandex-fleet.service';
 
 export class YandexFleetSheetExportService {
   constructor(
@@ -13,6 +14,7 @@ export class YandexFleetSheetExportService {
     private readonly yandexFleetWorkRuleRepository: Repository<YandexFleetWorkRuleEntity>,
     private readonly yandexFleetOrderRepository: Repository<YandexFleetOrderEntity>,
     private readonly googleSheetsApiService: GoogleSheetsAPIService,
+    private readonly yandexService: YandexFleetService,
   ) {}
 
   async exportToGoogleSheets(): Promise<void> {
@@ -60,15 +62,16 @@ export class YandexFleetSheetExportService {
     const BATCH_SIZE = 500;
     let offset = 0;
     const allRows: string[][] = [];
-    const oneMonthAgo = new Date();
-    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+    const oneMonthAndWeekAgo = new Date();
+    oneMonthAndWeekAgo.setMonth(oneMonthAndWeekAgo.getMonth() - 1);
+    oneMonthAndWeekAgo.setDate(oneMonthAndWeekAgo.getDate() - 7);
 
     while (true) {
       const orders = await this.yandexFleetOrderRepository.find({
         take: BATCH_SIZE,
         skip: offset,
         order: { bookedAt: 'DESC' },
-        where: { bookedAt: MoreThan(oneMonthAgo) },
+        where: { bookedAt: MoreThan(oneMonthAndWeekAgo) },
       });
       if (orders.length === 0) break;
 
@@ -85,12 +88,10 @@ export class YandexFleetSheetExportService {
   }
 
   private profileToRow(p: YandexFleetProfileEntity, ruleName: string, parkName: string): string[] {
-    console.log(p.yandexProfileId);
-    console.log(p.firstOrderDate);
     return [
       p.yandexProfileId,
       [p.lastName, p.firstName, p.middleName].filter(Boolean).join(' '),
-      p.phone ?? '',
+      p.phone ? p.phone.replace(/^\+/, '') : '',
       p.hiredAt ? formatDate(p.hiredAt) : '',
       p.firstOrderDate ? formatDate(p.firstOrderDate) : '',
       p.lastOrderDate ? formatDate(p.lastOrderDate) : '',
@@ -103,6 +104,86 @@ export class YandexFleetSheetExportService {
   }
 
   private orderToRow(o: YandexFleetOrderEntity): string[] {
-    return [o.profileId, o.bookedAt.toLocaleString('ru-RU'), mapOrderStatusName(o.status)];
+    return [o.profileId, o.bookedAt.toLocaleString('ru-RU'), mapOrderStatusName(o.status), o.price];
+  }
+
+  async exportSupplyHoursMonth(): Promise<void> {
+    const now = new Date();
+    const periodFrom = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const periodTo = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    await this.exportSupplyHours(SheetName.SupplyHoursMonth, periodFrom, periodTo);
+  }
+
+  async exportSupplyWeekly(): Promise<void> {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+
+    const periodTo = new Date(now);
+    periodTo.setDate(now.getDate() - daysSinceMonday);
+    periodTo.setHours(0, 0, 0, 0);
+
+    const periodFrom = new Date(periodTo);
+    periodFrom.setDate(periodTo.getDate() - 7);
+
+    await this.exportSupplyHours(SheetName.SupplyWeekMonth, periodFrom, periodTo);
+  }
+
+  private async exportSupplyHours(
+    sheetName: SheetName.SupplyHoursMonth | SheetName.SupplyWeekMonth,
+    periodFrom: Date,
+    periodTo: Date,
+  ): Promise<void> {
+    const fortyFiveDaysAgo = new Date();
+    fortyFiveDaysAgo.setDate(fortyFiveDaysAgo.getDate() - 45);
+
+    const profiles = await this.yandexFleetProfileRepository.find({
+      where: { lastOrderDate: MoreThan(fortyFiveDaysAgo) },
+    });
+
+    if (profiles.length === 0) {
+      console.log(`[YandexFleetSheetExportService] Нет активных водителей для ${sheetName}.`);
+      return;
+    }
+
+    const CONCURRENCY = 5;
+    const allRows: (string | number)[][] = [];
+
+    for (let i = 0; i < profiles.length; i += CONCURRENCY) {
+      const batch = profiles.slice(i, i + CONCURRENCY);
+      const results = await Promise.all(
+        batch.map(async (profile) => {
+          try {
+            const supplyHours = await this.yandexService.getDriverSupplyHours(
+              profile.parkId,
+              profile.yandexProfileId,
+              periodFrom,
+              periodTo,
+            );
+            const hours = Math.round(supplyHours.supply_duration_seconds / 3600);
+            return [profile.yandexProfileId, hours];
+          } catch (error) {
+            console.warn(
+              `[YandexFleetSheetExportService] Не удалось получить время для ${profile.yandexProfileId}:`,
+              error,
+            );
+            return null;
+          }
+        }),
+      );
+
+      for (const row of results) {
+        if (row) allRows.push(row);
+      }
+    }
+
+    await this.googleSheetsApiService.clearSheet(sheetName, 1);
+    await this.googleSheetsApiService.ensureHeaders(sheetName);
+    await this.googleSheetsApiService.appendRawRows(sheetName, allRows);
+
+    console.log(
+      `[YandexFleetSheetExportService] Выгружено ${allRows.length} строк в ${sheetName}.`,
+    );
   }
 }
