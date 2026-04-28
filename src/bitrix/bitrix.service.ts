@@ -48,7 +48,7 @@ export class BitrixService {
     });
   }
 
-  async getContact(contactId: string | number): Promise<BitrixContactFields> {
+  async getContact(contactId: string | number): Promise<BitrixContactFields | null> {
     let data: GetContactResponse;
 
     try {
@@ -60,9 +60,7 @@ export class BitrixService {
       throw buildError(error, BitrixService.name);
     }
 
-    if (!data.result) throw new Error('Contact not found');
-
-    return data.result;
+    return data.result || null;
   }
 
   async getContactsByPhone(phone: string): Promise<BitrixContactFields[]> {

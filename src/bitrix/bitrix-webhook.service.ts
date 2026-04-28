@@ -82,6 +82,9 @@ export class BitrixWebhookService {
     if (!targetYandexParkId) return;
 
     const contactData = await this.bitrixService.getContact(String(contactId));
+
+    if (!contactData) return;
+
     const phone = formatPhoneNumber(contactData.PHONE?.[0]?.VALUE);
     if (!phone) return;
 

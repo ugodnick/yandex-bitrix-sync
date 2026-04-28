@@ -73,9 +73,6 @@ client.interceptors.response.use(
       const backoff = Math.min(2000 * Math.pow(2, config._retryCount - 1), 60000);
       const delay = retryAfterHeader ? retryAfterHeader * 1000 : backoff;
 
-      console.warn(
-        `[Yandex Fleet API] 429 on ${config.url}, retry ${config._retryCount}/5 in ${delay}ms`,
-      );
       await new Promise((r) => setTimeout(r, delay));
       return client.request(config);
     }

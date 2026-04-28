@@ -250,6 +250,10 @@ export class YandexFleetProfileService {
       hiredAt,
       ...flat,
     });
+
+    console.log(
+      `[YandexFleetProfileService] Профиль ${profileId} в парке ${parkId} создан. Сделка: ${String(dealId)}. Контакт: ${String(contactId)}`,
+    );
   }
 
   private async updateProfile(params: {
@@ -292,6 +296,9 @@ export class YandexFleetProfileService {
     localState.dataHash = currentHash;
     localState.bitrixStageId = stage;
     await this.yandexFleetProfileRepository.save(localState);
+    console.log(
+      `[YandexFleetProfileService] Профиль ${profileId} в парке ${parkId} обновлен. Сделка: ${String(localState.bitrixDealId)}. Контакт: ${String(localState.bitrixContactId)}`,
+    );
   }
 
   private async processYandexProfile(
@@ -325,8 +332,30 @@ export class YandexFleetProfileService {
     }
 
     let existingContactId: number | undefined;
+    let needsRelink = false;
 
     if (!localState) {
+      needsRelink = true;
+    } else {
+      const contact = await this.bitrixService.getContact(localState.bitrixContactId);
+
+      if (!contact) {
+        await this.yandexFleetProfileRepository.remove(localState);
+        localState = null;
+        needsRelink = true;
+      } else {
+        const deals = await this.bitrixService.getDealsByContact(localState.bitrixContactId);
+        const dealExists = deals.some((d) => String(d.ID) === localState!.bitrixDealId);
+
+        if (!dealExists) {
+          await this.yandexFleetProfileRepository.remove(localState);
+          localState = null;
+          needsRelink = true;
+        }
+      }
+    }
+
+    if (needsRelink) {
       const result = await this.findAndLinkExistingBitrixProfile(
         parkId,
         profileId,
