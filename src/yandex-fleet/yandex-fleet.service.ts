@@ -53,6 +53,7 @@ export class YandexFleetService {
     parkId: string,
     limit: number = 100,
     offset: number = 0,
+    from: Date,
   ): Promise<YandexDriverProfileResponse> {
     try {
       const response = await this.client.post<YandexDriverProfileResponse>(
@@ -61,6 +62,9 @@ export class YandexFleetService {
           query: {
             park: {
               id: parkId,
+              updated_at: {
+                from: from.toISOString(),
+              },
               // driver_profile: {
               //   id: [],
               // },

@@ -1,4 +1,4 @@
-import { LessThan, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { YandexFleetService } from '../yandex-fleet.service';
 import { BITRIX_CATEGORY_STAGE, BitrixDealCategory } from '../../bitrix/bitrix.type';
 import { YandexFleetOrder } from '../yandex-fleet.type';
@@ -45,21 +45,20 @@ export class YandexFleetOrderService {
   }
 
   async syncParkOrders(parkId: string): Promise<void> {
+    const now = new Date();
+
     const oneMonthAndWeekAgo = new Date();
     oneMonthAndWeekAgo.setMonth(oneMonthAndWeekAgo.getMonth() - 1);
     oneMonthAndWeekAgo.setDate(oneMonthAndWeekAgo.getDate() - 7);
-    const now = new Date();
+
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
 
     let cursor: string | undefined = undefined;
     let totalSaved = 0;
 
     do {
-      const page = await this.yandexFleetService.getOrdersPage(
-        parkId,
-        oneMonthAndWeekAgo,
-        now,
-        cursor,
-      );
+      const page = await this.yandexFleetService.getOrdersPage(parkId, threeDaysAgo, now, cursor);
 
       if (page.orders.length > 0) {
         const entities = page.orders.map((o) => this.mapOrderToEntity(o, parkId));
@@ -69,10 +68,6 @@ export class YandexFleetOrderService {
 
       cursor = page.cursor || undefined;
     } while (cursor);
-
-    await this.yandexFleetOrderRepository.delete({
-      bookedAt: LessThan(oneMonthAndWeekAgo),
-    });
 
     console.log(`[YandexFleetOrderService] Парк ${parkId}: сохранено ${totalSaved} заказов`);
   }

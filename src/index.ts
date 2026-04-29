@@ -189,34 +189,37 @@ function scheduleSupplyWeeklyGoogleSheetExport() {
 function scheduleBitrixProfilesSyncing() {
   let isSyncing = false;
 
-  cron.schedule(
-    '0 */24 * * *',
-    async () => {
-      if (isSyncing) {
-        console.log(
-          '[scheduleBitrixProfilesSyncing] Предыдущая синхронизация еще не завершена. Пропускаем такт.',
-        );
-        return;
+  const runSync = async (newOnly: boolean) => {
+    if (isSyncing) {
+      console.log(
+        `[scheduleBitrixProfilesSyncing] Предыдущая синхронизация еще не завершена. Пропускаем такт (newOnly=${newOnly}).`,
+      );
+      return;
+    }
+
+    isSyncing = true;
+
+    try {
+      const profileService = container.get(YandexFleetProfileService);
+      const workRulesService = container.get(YandexFleetWorkRuleService);
+
+      for (const parkId of yandexParkIds) {
+        await workRulesService.syncParkWorkRules(parkId);
+        await profileService.syncProfiles(parkId, newOnly);
       }
+    } catch (error) {
+      console.error(
+        `[scheduleBitrixProfilesSyncing] Глобальная ошибка крона (newOnly=${newOnly}):`,
+        error,
+      );
+    } finally {
+      isSyncing = false;
+    }
+  };
 
-      isSyncing = true;
+  cron.schedule('0 * * * *', () => runSync(true));
 
-      try {
-        const profileService = container.get(YandexFleetProfileService);
-        const workRulesService = container.get(YandexFleetWorkRuleService);
-
-        for (const parkId of yandexParkIds) {
-          await workRulesService.syncParkWorkRules(parkId);
-          await profileService.syncProfiles(parkId);
-        }
-      } catch (error) {
-        console.error('[scheduleBitrixProfilesSyncing] Глобальная ошибка крона:', error);
-      } finally {
-        isSyncing = false;
-      }
-    },
-    { runOnInit: true },
-  );
+  cron.schedule('0 */4 * * *', () => runSync(false), { runOnInit: true });
 }
 
 async function bootstrap() {

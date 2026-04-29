@@ -46,15 +46,23 @@ export class YandexFleetProfileService {
     private yandexFleetProfileRepository: Repository<YandexFleetProfileEntity>,
   ) {}
 
-  async syncProfiles(yandexParkId: string): Promise<void> {
+  async syncProfiles(yandexParkId: string, newOnly: boolean): Promise<void> {
     console.log(`[YandexFleetProfileService] Запуск поллинга профилей для парка: ${yandexParkId}`);
     try {
       let offset = 0;
       const limit = 25;
       let total = 1;
+      const oneMonthAndWeekAgo = new Date();
+      oneMonthAndWeekAgo.setMonth(oneMonthAndWeekAgo.getMonth() - 1);
+      oneMonthAndWeekAgo.setDate(oneMonthAndWeekAgo.getDate() - 7);
 
       while (offset < total) {
-        const response = await this.yandexService.getProfiles(yandexParkId, limit, offset);
+        const response = await this.yandexService.getProfiles(
+          yandexParkId,
+          limit,
+          offset,
+          oneMonthAndWeekAgo,
+        );
 
         total = response.total;
         const drivers = response.driver_profiles || [];
@@ -68,7 +76,12 @@ export class YandexFleetProfileService {
         );
         for (const driver of drivers) {
           try {
-            await this.processYandexProfile(yandexParkId, driver.driver_profile.id, driver);
+            await this.processYandexProfile(
+              yandexParkId,
+              driver.driver_profile.id,
+              driver,
+              newOnly,
+            );
           } catch (error) {
             console.error(
               `[YandexFleetProfileService] Ошибка обработки водителя ${driver.driver_profile.id} в парке ${yandexParkId}:`,
@@ -305,10 +318,13 @@ export class YandexFleetProfileService {
     parkId: string,
     profileId: string,
     driver: YandexFleetDriverProfileItem,
+    newOnly: boolean,
   ): Promise<void> {
     let localState = await this.yandexFleetProfileRepository.findOneBy({
       yandexProfileId: profileId,
     });
+
+    if (newOnly && localState) return;
 
     const category = getBitrixCategory(parkId);
     const stagesToSkip: readonly string[] = [
@@ -410,8 +426,7 @@ export class YandexFleetProfileService {
       });
 
       return;
-      // } else if (localState.dataHash !== currentHash) {
-    } else {
+    } else if (localState.dataHash !== currentHash) {
       await this.updateProfile({
         parkId,
         profileId,
@@ -425,15 +440,14 @@ export class YandexFleetProfileService {
       });
 
       return;
+    } else if (
+      localState.lastOrderDate !== lastOrderDate ||
+      localState.firstOrderDate !== firstOrderDate
+    ) {
+      localState.lastOrderDate = lastOrderDate;
+      localState.firstOrderDate = firstOrderDate;
+      await this.yandexFleetProfileRepository.save(localState);
     }
-    // } else if (
-    //   localState.lastOrderDate !== lastOrderDate ||
-    //   localState.firstOrderDate !== firstOrderDate
-    // ) {
-    //   localState.lastOrderDate = lastOrderDate;
-    //   localState.firstOrderDate = firstOrderDate;
-    //   await this.yandexFleetProfileRepository.save(localState);
-    // }
   }
 
   private extractFlatFields(
