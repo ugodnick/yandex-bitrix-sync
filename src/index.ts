@@ -193,7 +193,7 @@ function scheduleProfileSync() {
 
   function enqueue(name: string, task: () => Promise<void>): void {
     if (pending.has(name)) {
-      console.log(`[scheduleAllSyncing] Пропуск ${name}: уже в очереди.`);
+      console.log(`[scheduleProfileSync] Пропуск ${name}: уже в очереди.`);
       return;
     }
 
@@ -202,24 +202,19 @@ function scheduleProfileSync() {
     syncQueue = syncQueue
       .then(async () => {
         pending.delete(name);
-        console.log(`[scheduleAllSyncing] Старт: ${name}`);
+        console.log(`[scheduleProfileSync] Старт: ${name}`);
         try {
           await task();
-          console.log(`[scheduleAllSyncing] Завершён: ${name}`);
+          console.log(`[scheduleProfileSync] Завершён: ${name}`);
         } catch (error) {
-          console.error(`[scheduleAllSyncing] Ошибка в ${name}:`, error);
+          console.error(`[scheduleProfileSync] Ошибка в ${name}:`, error);
         }
       })
       .catch(() => {});
   }
   const runSync = async (mode: 'new' | 'existing' | 'stages') => {
-    const orderService = container.get(YandexFleetOrderService);
     const profileService = container.get(YandexFleetProfileService);
     const workRulesService = container.get(YandexFleetWorkRuleService);
-
-    for (const parkId of yandexParkIds) {
-      await orderService.syncParkOrders(parkId);
-    }
 
     if (mode === 'new') {
       for (const parkId of yandexParkIds) {
@@ -239,8 +234,8 @@ function scheduleProfileSync() {
   };
 
   cron.schedule('*/5 * * * *', () => enqueue('new', () => runSync('new')));
-  cron.schedule('0 */4 * * *', () => enqueue('stages', () => runSync('stages')));
-  cron.schedule('0 */6 * * *', () => enqueue('existing', () => runSync('existing')));
+  cron.schedule('0 */12 * * *', () => enqueue('stages', () => runSync('stages')));
+  cron.schedule('0 */2 * * *', () => enqueue('existing', () => runSync('existing')));
 }
 
 function scheduleOrdersSync() {
@@ -265,7 +260,7 @@ function scheduleOrdersSync() {
         isSyncing = false;
       }
     },
-    { timezone: 'Asia/Vladivostok', runOnInit: true },
+    { timezone: 'Asia/Vladivostok' },
   );
 }
 
