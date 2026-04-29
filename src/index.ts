@@ -217,9 +217,9 @@ function scheduleBitrixProfilesSyncing() {
     }
   };
 
-  cron.schedule('0 * * * *', () => runSync(true));
+  cron.schedule('0 * * * *', () => runSync(true), { runOnInit: true });
 
-  cron.schedule('0 */4 * * *', () => runSync(false), { runOnInit: true });
+  cron.schedule('0 */4 * * *', () => runSync(false));
 }
 
 async function bootstrap() {
