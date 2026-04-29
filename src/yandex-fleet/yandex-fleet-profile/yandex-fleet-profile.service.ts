@@ -49,7 +49,9 @@ export class YandexFleetProfileService {
   ) {}
 
   async syncProfiles(yandexParkId: string, newOnly: boolean): Promise<void> {
-    console.log(`[YandexFleetProfileService] Запуск синхронизации новых профилей: ${yandexParkId}`);
+    console.log(
+      `[YandexFleetProfileService] Запуск синхронизации ${newOnly ? 'новых' : 'всех'} профилей: ${yandexParkId}`,
+    );
     try {
       const oneDayAgo = new Date();
       oneDayAgo.setDate(oneDayAgo.getDate() - 1);
