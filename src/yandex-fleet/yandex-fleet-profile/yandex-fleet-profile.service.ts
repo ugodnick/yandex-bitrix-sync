@@ -1,4 +1,4 @@
-import { Repository } from 'typeorm';
+import { In, IsNull, LessThanOrEqual, Not, Repository } from 'typeorm';
 import { YandexFleetService } from '../yandex-fleet.service';
 import { BitrixService } from '../../bitrix/bitrix.service';
 import { YandexFleetProfileEntity } from './yandex-fleet-profile.entity';
@@ -37,6 +37,7 @@ import {
 } from '../yandex-fleet.utils';
 import { getBitrixCategory } from '../../bitrix/bitrix.utils';
 import { YandexFleetOrderService } from '../yandex-fleet-order/yandex-fleet-order.service';
+import { YandexFleetOrderEntity } from '../yandex-fleet-order/yandex-fleet-order.entity';
 
 export class YandexFleetProfileService {
   constructor(
@@ -44,36 +45,36 @@ export class YandexFleetProfileService {
     private bitrixService: BitrixService,
     private yandexFleetOrderService: YandexFleetOrderService,
     private yandexFleetProfileRepository: Repository<YandexFleetProfileEntity>,
+    private yandexFleetOrderRepository: Repository<YandexFleetOrderEntity>,
   ) {}
 
   async syncProfiles(yandexParkId: string, newOnly: boolean): Promise<void> {
-    console.log(`[YandexFleetProfileService] Запуск поллинга профилей для парка: ${yandexParkId}`);
+    console.log(`[YandexFleetProfileService] Запуск синхронизации новых профилей: ${yandexParkId}`);
     try {
+      const oneDayAgo = new Date();
+      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+
       let offset = 0;
-      const limit = 25;
+      const limit = 100;
       let total = 1;
-      const oneMonthAndWeekAgo = new Date();
-      oneMonthAndWeekAgo.setMonth(oneMonthAndWeekAgo.getMonth() - 1);
-      oneMonthAndWeekAgo.setDate(oneMonthAndWeekAgo.getDate() - 7);
 
       while (offset < total) {
         const response = await this.yandexService.getProfiles(
           yandexParkId,
           limit,
           offset,
-          oneMonthAndWeekAgo,
+          oneDayAgo,
         );
 
         total = response.total;
         const drivers = response.driver_profiles || [];
 
-        if (drivers.length === 0) {
-          break;
-        }
+        if (drivers.length === 0) break;
 
         console.log(
           `[YandexFleetProfileService] Обработка пачки: ${offset + 1} - ${offset + drivers.length} из ${total}...`,
         );
+
         for (const driver of drivers) {
           try {
             await this.processYandexProfile(
@@ -84,22 +85,113 @@ export class YandexFleetProfileService {
             );
           } catch (error) {
             console.error(
-              `[YandexFleetProfileService] Ошибка обработки водителя ${driver.driver_profile.id} в парке ${yandexParkId}:`,
+              `[YandexFleetProfileService] Ошибка обработки водителя ${driver.driver_profile.id}:`,
               error,
             );
           }
         }
 
         offset += limit;
-
-        await new Promise((resolve) => setTimeout(resolve, 500));
       }
+
       console.log(
-        `[YandexFleetProfileService] Поллинг профилей для парка ${yandexParkId} успешно завершен. Обработано: ${total}`,
+        `[YandexFleetProfileService] Синхронизация новых профилей ${yandexParkId} завершена.`,
       );
     } catch (error) {
       console.error(
-        `[YandexFleetProfileService] Ошибка синхронизации профилей парка ${yandexParkId}:`,
+        `[YandexFleetProfileService] Ошибка синхронизации новых ${yandexParkId}:`,
+        error,
+      );
+    }
+  }
+
+  async syncProfileStages(yandexParkId: string): Promise<void> {
+    console.log(`[YandexFleetProfileService] Запуск синхронизации стадий: ${yandexParkId}`);
+
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const category = getBitrixCategory(yandexParkId);
+    const stagesToSkip: string[] = [
+      category.Duplicates,
+      category.Refusal,
+      category.SpamAdvertisingIlliquid,
+      category.Pause,
+      category.Archive,
+      category.Cold,
+    ];
+
+    const BATCH_SIZE = 200;
+    let offset = 0;
+    let updated = 0;
+
+    try {
+      while (true) {
+        const profiles = await this.yandexFleetProfileRepository.find({
+          where: [
+            {
+              parkId: yandexParkId,
+              bitrixStageId: Not(In(stagesToSkip)),
+              lastOrderDate: LessThanOrEqual(sevenDaysAgo),
+            },
+            {
+              parkId: yandexParkId,
+              bitrixStageId: Not(In(stagesToSkip)),
+              lastOrderDate: IsNull(),
+              hiredAt: LessThanOrEqual(thirtyDaysAgo),
+            },
+          ],
+          order: { yandexProfileId: 'ASC' },
+          take: BATCH_SIZE,
+          skip: offset,
+        });
+
+        if (profiles.length === 0) break;
+
+        for (const profile of profiles) {
+          try {
+            const lastOrders = await this.yandexFleetOrderRepository.find({
+              where: { profileId: profile.yandexProfileId, parkId: yandexParkId },
+              order: { bookedAt: 'DESC' },
+              take: 30,
+            });
+
+            const nextStage = this.yandexFleetOrderService.resolveNextStage(
+              lastOrders,
+              profile.hiredAt,
+            );
+
+            if (!nextStage || nextStage === profile.bitrixStageId) continue;
+
+            await this.bitrixService.updateDeal(profile.bitrixDealId, {
+              STAGE_ID: nextStage,
+            });
+
+            profile.bitrixStageId = nextStage;
+            profile.dataHash = '';
+            await this.yandexFleetProfileRepository.save(profile);
+
+            updated++;
+          } catch (error) {
+            console.error(
+              `[YandexFleetProfileService] Ошибка обновления стадии для ${profile.yandexProfileId}:`,
+              error,
+            );
+          }
+        }
+
+        offset += BATCH_SIZE;
+      }
+
+      console.log(
+        `[YandexFleetProfileService] Синхронизация стадий ${yandexParkId} завершена. Обновлено: ${updated}.`,
+      );
+    } catch (error) {
+      console.error(
+        `[YandexFleetProfileService] Ошибка синхронизации стадий ${yandexParkId}:`,
         error,
       );
     }
@@ -342,7 +434,6 @@ export class YandexFleetProfileService {
 
     const driverProfile = await this.yandexService.getProfile(parkId, driver.driver_profile.id);
 
-    // Yandex API Bug fix
     if ((driverProfile.person.driver_license.country as string) === 'vnm') {
       driverProfile.person.driver_license.country = undefined;
     }
@@ -388,7 +479,12 @@ export class YandexFleetProfileService {
     }
 
     const hiredAt = new Date(driverProfile.profile.hire_date || driver.driver_profile.created_date);
-    const lastOrders = await this.yandexService.getLastDriverOrders(parkId, profileId, hiredAt);
+
+    const lastOrders = await this.yandexFleetOrderRepository.find({
+      where: { profileId, parkId },
+      order: { bookedAt: 'DESC' },
+      take: 30,
+    });
 
     let stage: string = localState ? localState.bitrixStageId : category.NotProcessed;
     const nextStage = this.yandexFleetOrderService.resolveNextStage(lastOrders, hiredAt);
@@ -402,11 +498,20 @@ export class YandexFleetProfileService {
       stage = nextStage;
     }
 
-    const lastOrderDate = lastOrders.length > 0 ? new Date(lastOrders[0].booked_at) : null;
+    const lastOrderDate = lastOrders.length > 0 ? new Date(lastOrders[0].bookedAt) : null;
     let firstOrderDate = localState?.firstOrderDate || null;
 
     if (!firstOrderDate && (!localState || localState.bitrixStageId !== category.Archive)) {
-      firstOrderDate = await this.yandexService.getFirstOrderDate(parkId, profileId, hiredAt);
+      const oldestLocalOrder = await this.yandexFleetOrderRepository.findOne({
+        where: { profileId, parkId },
+        order: { bookedAt: 'ASC' },
+      });
+
+      if (oldestLocalOrder && hiredAt >= oldestLocalOrder.bookedAt) {
+        firstOrderDate = oldestLocalOrder.bookedAt;
+      } else {
+        firstOrderDate = await this.yandexService.getFirstOrderDate(parkId, profileId, hiredAt);
+      }
     }
 
     const currentHash = calculateDriverHash(driverProfile, driverCar, stage);
@@ -424,7 +529,6 @@ export class YandexFleetProfileService {
         hiredAt,
         existingContactId,
       });
-
       return;
     } else if (localState.dataHash !== currentHash) {
       await this.updateProfile({
@@ -438,7 +542,6 @@ export class YandexFleetProfileService {
         lastOrderDate,
         firstOrderDate,
       });
-
       return;
     } else if (
       localState.lastOrderDate !== lastOrderDate ||

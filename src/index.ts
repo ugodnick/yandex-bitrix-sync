@@ -65,6 +65,7 @@ function initServices(database: DataSource): void {
         container.get(BitrixService),
         container.get(YandexFleetOrderService),
         yandexFleetProfileRepository,
+        yandexFleetOrderRepository,
       ),
   );
   container.add(
@@ -186,40 +187,86 @@ function scheduleSupplyWeeklyGoogleSheetExport() {
   );
 }
 
-function scheduleBitrixProfilesSyncing() {
-  let isSyncing = false;
+function scheduleProfileSync() {
+  const pending = new Set<string>();
+  let syncQueue: Promise<void> = Promise.resolve();
 
-  const runSync = async (newOnly: boolean) => {
-    if (isSyncing) {
-      console.log(
-        `[scheduleBitrixProfilesSyncing] Предыдущая синхронизация еще не завершена. Пропускаем такт (newOnly=${newOnly}).`,
-      );
+  function enqueue(name: string, task: () => Promise<void>): void {
+    if (pending.has(name)) {
+      console.log(`[scheduleAllSyncing] Пропуск ${name}: уже в очереди.`);
       return;
     }
 
-    isSyncing = true;
+    pending.add(name);
 
-    try {
-      const profileService = container.get(YandexFleetProfileService);
-      const workRulesService = container.get(YandexFleetWorkRuleService);
+    syncQueue = syncQueue
+      .then(async () => {
+        pending.delete(name);
+        console.log(`[scheduleAllSyncing] Старт: ${name}`);
+        try {
+          await task();
+          console.log(`[scheduleAllSyncing] Завершён: ${name}`);
+        } catch (error) {
+          console.error(`[scheduleAllSyncing] Ошибка в ${name}:`, error);
+        }
+      })
+      .catch(() => {});
+  }
+  const runSync = async (mode: 'new' | 'existing' | 'stages') => {
+    const orderService = container.get(YandexFleetOrderService);
+    const profileService = container.get(YandexFleetProfileService);
+    const workRulesService = container.get(YandexFleetWorkRuleService);
 
+    for (const parkId of yandexParkIds) {
+      await orderService.syncParkOrders(parkId);
+    }
+
+    if (mode === 'new') {
       for (const parkId of yandexParkIds) {
         await workRulesService.syncParkWorkRules(parkId);
-        await profileService.syncProfiles(parkId, newOnly);
+        await profileService.syncProfiles(parkId, true);
       }
-    } catch (error) {
-      console.error(
-        `[scheduleBitrixProfilesSyncing] Глобальная ошибка крона (newOnly=${newOnly}):`,
-        error,
-      );
-    } finally {
-      isSyncing = false;
+    } else if (mode === 'existing') {
+      for (const parkId of yandexParkIds) {
+        await workRulesService.syncParkWorkRules(parkId);
+        await profileService.syncProfiles(parkId, false);
+      }
+    } else {
+      for (const parkId of yandexParkIds) {
+        await profileService.syncProfileStages(parkId);
+      }
     }
   };
 
-  cron.schedule('0 * * * *', () => runSync(true), { runOnInit: true });
+  cron.schedule('*/5 * * * *', () => enqueue('new', () => runSync('new')));
+  cron.schedule('0 */4 * * *', () => enqueue('stages', () => runSync('stages')));
+  cron.schedule('0 */6 * * *', () => enqueue('existing', () => runSync('existing')));
+}
 
-  cron.schedule('0 */4 * * *', () => runSync(false));
+function scheduleOrdersSync() {
+  let isSyncing = false;
+
+  cron.schedule(
+    '0 */1 * * *',
+    async () => {
+      if (isSyncing) {
+        console.log('[scheduleOrdersSync] Синхронизация активна, ждём...');
+        return;
+      }
+      isSyncing = true;
+      try {
+        const yandexFleetOrderService = container.get(YandexFleetOrderService);
+        for (const parkId of yandexParkIds) {
+          await yandexFleetOrderService.syncParkOrders(parkId);
+        }
+      } catch (error) {
+        console.error('[scheduleOrdersSync] Ошибка экспорта:', error);
+      } finally {
+        isSyncing = false;
+      }
+    },
+    { timezone: 'Asia/Vladivostok', runOnInit: true },
+  );
 }
 
 async function bootstrap() {
@@ -249,8 +296,9 @@ async function bootstrap() {
     console.log(`Server is running on port ${PORT}`);
   });
 
+  scheduleOrdersSync();
   scheduleGoogleSheetExport();
-  scheduleBitrixProfilesSyncing();
+  scheduleProfileSync();
   scheduleSupplyMonthGoogleSheetExport();
   scheduleSupplyWeeklyGoogleSheetExport();
 }

@@ -10,7 +10,7 @@ export class YandexFleetOrderService {
     private readonly yandexFleetService: YandexFleetService,
   ) {}
 
-  public resolveNextStage(orders: YandexFleetOrder[], hiredAt: Date): string | null {
+  public resolveNextStage(orders: YandexFleetOrderEntity[], hiredAt: Date): string | null {
     const stages = BITRIX_CATEGORY_STAGE[BitrixDealCategory.YANDEX_DELIVERY];
 
     const activityStage = this.resolveActivityStage(orders, hiredAt, stages);
@@ -23,7 +23,7 @@ export class YandexFleetOrderService {
   }
 
   private resolveActivityStage(
-    orders: YandexFleetOrder[],
+    orders: YandexFleetOrderEntity[],
     hiredAt: Date,
     stages: (typeof BITRIX_CATEGORY_STAGE)[BitrixDealCategory.YANDEX_DELIVERY],
   ): string | null {
@@ -35,7 +35,7 @@ export class YandexFleetOrderService {
       return null;
     }
 
-    const lastOrderDate = new Date(orders[0].created_at);
+    const lastOrderDate = new Date(orders[0].bookedAt);
     const daysSinceLastOrder = (now.getTime() - lastOrderDate.getTime()) / (1000 * 60 * 60 * 24);
 
     if (daysSinceLastOrder >= 30) return stages.Cold;
@@ -47,12 +47,8 @@ export class YandexFleetOrderService {
   async syncParkOrders(parkId: string): Promise<void> {
     const now = new Date();
 
-    const oneMonthAndWeekAgo = new Date();
-    oneMonthAndWeekAgo.setMonth(oneMonthAndWeekAgo.getMonth() - 1);
-    oneMonthAndWeekAgo.setDate(oneMonthAndWeekAgo.getDate() - 7);
-
     const threeDaysAgo = new Date();
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 2);
 
     let cursor: string | undefined = undefined;
     let totalSaved = 0;

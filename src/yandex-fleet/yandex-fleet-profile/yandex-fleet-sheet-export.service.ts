@@ -1,4 +1,4 @@
-import { In, MoreThan, Repository } from 'typeorm';
+import { MoreThan, Repository } from 'typeorm';
 import { YandexFleetProfileEntity } from './yandex-fleet-profile.entity';
 import { GoogleSheetsAPIService } from '../../google-sheet/google-sheet.service';
 import { SheetName } from '../../google-sheet/google-sheet.type';
@@ -34,7 +34,7 @@ export class YandexFleetSheetExportService {
       const profiles = await this.yandexFleetProfileRepository.find({
         take: BATCH_SIZE,
         skip: offset,
-        order: { yandexProfileId: 'ASC' },
+        order: { hiredAt: 'DESC' },
       });
       if (profiles.length === 0) break;
 
@@ -138,44 +138,39 @@ export class YandexFleetSheetExportService {
     const fortyFiveDaysAgo = new Date();
     fortyFiveDaysAgo.setDate(fortyFiveDaysAgo.getDate() - 45);
 
-    const profiles = await this.yandexFleetProfileRepository.find({
-      where: { lastOrderDate: MoreThan(fortyFiveDaysAgo) },
-    });
-
-    if (profiles.length === 0) {
-      console.log(`[YandexFleetSheetExportService] Нет активных водителей для ${sheetName}.`);
-      return;
-    }
-
-    const CONCURRENCY = 5;
+    const BATCH_SIZE = 200;
+    let offset = 0;
     const allRows: (string | number)[][] = [];
 
-    for (let i = 0; i < profiles.length; i += CONCURRENCY) {
-      const batch = profiles.slice(i, i + CONCURRENCY);
-      const results = await Promise.all(
-        batch.map(async (profile) => {
-          try {
-            const supplyHours = await this.yandexService.getDriverSupplyHours(
-              profile.parkId,
-              profile.yandexProfileId,
-              periodFrom,
-              periodTo,
-            );
-            const hours = Math.round(supplyHours.supply_duration_seconds / 3600);
-            return [profile.yandexProfileId, hours];
-          } catch (error) {
-            console.warn(
-              `[YandexFleetSheetExportService] Не удалось получить время для ${profile.yandexProfileId}:`,
-              error,
-            );
-            return null;
-          }
-        }),
-      );
+    while (true) {
+      const profiles = await this.yandexFleetProfileRepository.find({
+        where: { lastOrderDate: MoreThan(fortyFiveDaysAgo) },
+        order: { yandexProfileId: 'ASC' },
+        take: BATCH_SIZE,
+        skip: offset,
+      });
 
-      for (const row of results) {
-        if (row) allRows.push(row);
+      if (profiles.length === 0) break;
+
+      for (const profile of profiles) {
+        try {
+          const supplyHours = await this.yandexService.getDriverSupplyHours(
+            profile.parkId,
+            profile.yandexProfileId,
+            periodFrom,
+            periodTo,
+          );
+          const hours = Math.round(supplyHours.supply_duration_seconds / 3600);
+          allRows.push([profile.yandexProfileId, hours]);
+        } catch (error) {
+          console.warn(
+            `[YandexFleetSheetExportService] Не удалось получить время для ${profile.yandexProfileId}:`,
+            error,
+          );
+        }
       }
+
+      offset += BATCH_SIZE;
     }
 
     await this.googleSheetsApiService.clearSheet(sheetName, 1);
