@@ -54,7 +54,7 @@ export class BitrixWebhookService {
 
     try {
       if (event === 'ONCRMDEALUPDATE' || event === 'ONCRMDEALADD') {
-        await this.syncDealToYandex(entityId);
+        await this.syncDealToYandexTest(entityId);
       }
     } catch (error) {
       throw buildError(error, BitrixWebhookService.name);
@@ -145,6 +145,86 @@ export class BitrixWebhookService {
           contactData,
         );
       }
+    }
+  }
+
+  private async syncDealToYandexTest(dealId: string): Promise<void> {
+    const deal = await this.bitrixService.getDeal(dealId);
+    console.log(`[Webhook] dealId=${dealId}, category=${deal.CATEGORY_ID}, stage=${deal.STAGE_ID}`);
+
+    const category = deal.CATEGORY_ID;
+    if (!category || category !== BitrixDealCategory.YANDEX_DELIVERY) {
+      console.log(`[Webhook] Выход: категория не YANDEX_DELIVERY (${category})`);
+      return;
+    }
+
+    const contactId = deal.CONTACT_ID;
+    if (!contactId) {
+      console.log(`[Webhook] Выход: нет CONTACT_ID`);
+      return;
+    }
+
+    const bitrixDispatcherField = deal[BITRIX_FIELDS.DISPATCHER];
+    const dispatcherId = bitrixDispatcherField
+      ? Array.isArray(bitrixDispatcherField) && bitrixDispatcherField.length > 0
+        ? String(bitrixDispatcherField[0])
+        : String(bitrixDispatcherField)
+      : '';
+
+    const targetYandexParkId = BITRIX_TO_YANDEX_PARK[dispatcherId];
+    if (!targetYandexParkId) {
+      console.log(`[Webhook] Выход: нет парка для dispatcher=${dispatcherId}`);
+      return;
+    }
+
+    const contactData = await this.bitrixService.getContact(String(contactId));
+    if (!contactData) {
+      console.log(`[Webhook] Выход: контакт ${contactId} не найден`);
+      return;
+    }
+
+    const phone = formatPhoneNumber(contactData.PHONE?.[0]?.VALUE);
+    if (!phone) {
+      console.log(`[Webhook] Выход: нет телефона у контакта ${contactId}`);
+      return;
+    }
+
+    const yandexProfileId: string | null = (deal[BITRIX_FIELDS.PROFILE_ID] as string) || null;
+    console.log(`[Webhook] yandexProfileId=${yandexProfileId}`);
+
+    if (!yandexProfileId) {
+      console.log(`[Webhook] Выход: пустой yandexProfileId`);
+      return;
+    }
+
+    const localProfile = await this.yandexFleetProfileRepository.findOne({
+      where: { yandexProfileId },
+    });
+    console.log(`[Webhook] localProfile=${!!localProfile}, currentHash=${localProfile?.dataHash}`);
+
+    const cat = getBitrixCategory(targetYandexParkId);
+    const stagesToSkip: readonly string[] = [cat.Archive, cat.Refusal];
+
+    if (localProfile && stagesToSkip.includes(localProfile.bitrixStageId)) {
+      console.log(`[Webhook] Выход: стадия в skip-листе (${localProfile.bitrixStageId})`);
+      return;
+    }
+
+    const newHash = localProfile ? calculateDriverHash(deal, contactData) : '';
+    console.log(`[Webhook] newHash=${newHash}, equal=${localProfile?.dataHash === newHash}`);
+
+    if (localProfile && localProfile.dataHash !== newHash) {
+      await this.saveLocalState(
+        yandexProfileId,
+        targetYandexParkId,
+        contactId,
+        dealId,
+        deal,
+        contactData,
+      );
+      console.log(`[Webhook] Хеш сохранён для ${yandexProfileId}`);
+    } else {
+      console.log(`[Webhook] saveLocalState не вызван`);
     }
   }
 
@@ -457,7 +537,9 @@ export class BitrixWebhookService {
 
     const stage = deal.STAGE_ID;
 
-    const hireDate = deal[BITRIX_FIELDS.HIRE_DATE] ? new Date(String(deal[BITRIX_FIELDS.HIRE_DATE])) : null;
+    const hireDate = deal[BITRIX_FIELDS.HIRE_DATE]
+      ? new Date(String(deal[BITRIX_FIELDS.HIRE_DATE]))
+      : null;
     const fleetCreatedAt = deal.DATE_CREATE ? new Date(deal.DATE_CREATE) : new Date();
     const phone = formatPhoneNumber(contact.PHONE?.[0]?.VALUE);
 

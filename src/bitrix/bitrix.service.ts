@@ -22,7 +22,7 @@ import { buildError } from './bitrix.utils';
 export class BitrixService {
   private client: AxiosInstance;
   private lastRequestTime = 0;
-  private readonly REQUEST_DELAY_MS = 500;
+  private readonly REQUEST_DELAY_MS = 700;
 
   constructor(inboundWebhookUrl: string) {
     const baseURL = inboundWebhookUrl.endsWith('/') ? inboundWebhookUrl : `${inboundWebhookUrl}/`;
