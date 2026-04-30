@@ -56,8 +56,8 @@ export class YandexFleetProfileService {
       const oneHourAgo = new Date();
       oneHourAgo.setHours(oneHourAgo.getHours() - 1);
 
-      const threeHourAgo = new Date();
-      threeHourAgo.setHours(threeHourAgo.getHours() - 7);
+      const twelveHoursAgo = new Date();
+      twelveHoursAgo.setHours(twelveHoursAgo.getHours() - 12);
 
       let offset = 0;
       const limit = newOnly ? 100 : 25;
@@ -68,7 +68,7 @@ export class YandexFleetProfileService {
           yandexParkId,
           limit,
           offset,
-          newOnly ? oneHourAgo : threeHourAgo,
+          newOnly ? oneHourAgo : twelveHoursAgo,
         );
 
         total = response.total;

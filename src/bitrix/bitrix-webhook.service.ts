@@ -91,49 +91,6 @@ export class BitrixWebhookService {
     const yandexProfileId: string | null = (deal[BITRIX_FIELDS.PROFILE_ID] as string) || null;
 
     if (!yandexProfileId) {
-      // if (!this.canCreateYandexProfile(contactData, deal)) {
-      //   console.log(
-      //     `[BitrixService] Недостаточно данных для создания водителя. Deal ${dealId}, Contact ${contactId}`,
-      //   );
-      //   return;
-      // }
-      //
-      // const ruleId = await this.yandexFleetWorkRuleService.getDefaultWorkRule(targetYandexParkId);
-      //
-      // const creationPayload = this.buildYandexProfileCreationPayload(deal, contactData, ruleId);
-      //
-      // if (
-      //   creationPayload.profession === YandexDriverProfessionType.CargoCourierOnFoot &&
-      //   creationPayload.employment.type === EmploymentType.ParkEmployee
-      // ) {
-      //   yandexProfileId = await this.yandexFleetService.createWalkCourier(
-      //     targetYandexParkId,
-      //     this.buildYandexWalkCourierCreationPayload(creationPayload),
-      //   );
-      // } else if (
-      //   creationPayload.profession === YandexDriverProfessionType.CargoCourierOnFoot &&
-      //   creationPayload.employment.type === EmploymentType.SelfEmployed
-      // ) {
-      //   yandexProfileId = await this.yandexFleetService.createWalkSECourier(
-      //     targetYandexParkId,
-      //     this.buildYandexWalkCourierSECreationPayload(creationPayload),
-      //   );
-      // } else {
-      //   if (this.canCreateYandexCar(deal)) {
-      //     const carCreatePayload = this.buildYandexCarCreatePayload(deal);
-      //
-      //     if (carCreatePayload) {
-      //       creationPayload.contractor.car_id = await this.yandexFleetService.createCar(
-      //         targetYandexParkId,
-      //         carCreatePayload,
-      //       );
-      //     }
-      //   }
-      //   yandexProfileId = await this.yandexFleetService.createProfile(
-      //     targetYandexParkId,
-      //     creationPayload,
-      //   );
-      // }
     } else {
       const localProfile = await this.yandexFleetProfileRepository.findOne({
         where: { yandexProfileId },
@@ -145,39 +102,39 @@ export class BitrixWebhookService {
       if (localProfile && stagesToSkip.includes(localProfile.bitrixStageId)) return;
 
       if (localProfile && localProfile.dataHash !== calculateDriverHash(deal, contactData)) {
-        const currentProfile = await this.yandexFleetService.getProfile(
-          targetYandexParkId,
-          yandexProfileId,
-        );
-
-        const updatedProfile = this.buildYandexProfileUpdatePayload(
-          currentProfile,
-          deal,
-          contactData,
-        );
-        if (deal.STAGE_ID === localProfile.bitrixStageId) {
-          if (currentProfile.car_id) {
-            const car = await this.yandexFleetService.getCar(
-              targetYandexParkId,
-              currentProfile.car_id,
-            );
-            const updatedCar = this.buildYandexCarUpdatePayload(car, deal);
-
-            if (updatedCar) {
-              await this.yandexFleetService.updateCar(
-                targetYandexParkId,
-                currentProfile.car_id,
-                updatedCar,
-              );
-            }
-          }
-
-          await this.yandexFleetService.updateProfile(
-            targetYandexParkId,
-            yandexProfileId,
-            updatedProfile,
-          );
-        }
+        // const currentProfile = await this.yandexFleetService.getProfile(
+        //   targetYandexParkId,
+        //   yandexProfileId,
+        // );
+        //
+        // const updatedProfile = this.buildYandexProfileUpdatePayload(
+        //   currentProfile,
+        //   deal,
+        //   contactData,
+        // );
+        // if (deal.STAGE_ID === localProfile.bitrixStageId) {
+        //   if (currentProfile.car_id) {
+        //     const car = await this.yandexFleetService.getCar(
+        //       targetYandexParkId,
+        //       currentProfile.car_id,
+        //     );
+        //     const updatedCar = this.buildYandexCarUpdatePayload(car, deal);
+        //
+        //     if (updatedCar) {
+        //       await this.yandexFleetService.updateCar(
+        //         targetYandexParkId,
+        //         currentProfile.car_id,
+        //         updatedCar,
+        //       );
+        //     }
+        //   }
+        //
+        //   await this.yandexFleetService.updateProfile(
+        //     targetYandexParkId,
+        //     yandexProfileId,
+        //     updatedProfile,
+        //   );
+        // }
 
         await this.saveLocalState(
           yandexProfileId,
@@ -189,161 +146,7 @@ export class BitrixWebhookService {
         );
       }
     }
-
-    // if (deal[BITRIX_FIELDS.PROFILE_ID] !== yandexProfileId) {
-    //   await this.bitrixService.updateDeal(dealId, {
-    //     [BITRIX_FIELDS.PROFILE_ID]: yandexProfileId,
-    //   });
-    // }
   }
-
-  // private async syncContactToYandex(contactId: string): Promise<void> {
-  //   const contactData = await this.bitrixService.getContact(contactId);
-  //   const phone = formatPhoneNumber(contactData.PHONE?.[0]?.VALUE);
-  //   if (!phone) return;
-  //
-  //   const latestDeal = await this.bitrixService.getLatestDealByContact(contactId);
-  //   if (!latestDeal) return;
-  //
-  //   const yandexProfileId = (latestDeal[BITRIX_FIELDS.PROFILE_ID] as string) || null;
-  //   if (!yandexProfileId) return;
-  //
-  //   const dispatcherId = String(latestDeal[BITRIX_FIELDS.DISPATCHER]);
-  //   const targetYandexParkId = BITRIX_TO_YANDEX_PARK[dispatcherId];
-  //   if (!targetYandexParkId) return;
-  //
-  //   const localProfile = await this.yandexFleetProfileRepository.findOne({
-  //     where: { yandexProfileId },
-  //   });
-  //
-  //   if (!localProfile) return;
-  //
-  //   if (calculateDriverHash(latestDeal, contactData) !== localProfile.dataHash) {
-  //     const currentProfile = await this.yandexFleetService.getProfile(
-  //       targetYandexParkId,
-  //       yandexProfileId,
-  //     );
-  //
-  //     const updatedProfile = this.buildYandexProfileUpdatePayload(
-  //       currentProfile,
-  //       latestDeal,
-  //       contactData,
-  //     );
-  //
-  //     await this.yandexFleetService.updateProfile(
-  //       targetYandexParkId,
-  //       yandexProfileId,
-  //       updatedProfile,
-  //     );
-  //
-  //     await this.saveLocalState(
-  //       yandexProfileId,
-  //       targetYandexParkId,
-  //       contactId,
-  //       latestDeal.ID!,
-  //       latestDeal,
-  //       contactData,
-  //     );
-  //   }
-  // }
-
-  // private canCreateYandexProfile(contact: BitrixContactFields, deal: BitrixDealFields): boolean {
-  //   const phone = contact.PHONE?.[0]?.VALUE;
-  //   const firstName = contact.NAME;
-  //   const lastName = contact.LAST_NAME;
-  //   const birthDate = contact.BIRTHDATE;
-  //
-  //   const dlExperienceSince = deal[BITRIX_FIELDS.DRIVING_EXPERIENCE];
-  //   const hireDate = deal[BITRIX_FIELDS.HIRE_DATE];
-  //   const vacancy = deal[BITRIX_FIELDS.VACANCY];
-  //   const employmentType = deal[BITRIX_FIELDS.EMPLOYMENT_TYPE];
-  //   const address = deal[BITRIX_FIELDS.ADDRESS_DISP];
-  //
-  //   return !!(
-  //     phone &&
-  //     firstName &&
-  //     lastName &&
-  //     birthDate &&
-  //     dlExperienceSince &&
-  //     hireDate &&
-  //     vacancy &&
-  //     employmentType &&
-  //     address
-  //   );
-  // }
-  //
-  // private canCreateYandexCar(deal: BitrixDealFields): boolean {
-  //   const brand = deal[BITRIX_FIELDS.BRAND];
-  //   const model = deal[BITRIX_FIELDS.MODEL];
-  //   const year = deal[BITRIX_FIELDS.YEAR];
-  //   const color = deal[BITRIX_FIELDS.COLOR];
-  //   const transmission = deal[BITRIX_FIELDS.TRANSMISSION];
-  //   const fuelType = deal[BITRIX_FIELDS.FUEL_TYPE];
-  //   const vin = deal[BITRIX_FIELDS.VIN];
-  //   const licensePlate = deal[BITRIX_FIELDS.LICENSE_PLATE];
-  //
-  //   return !!(brand && model && year && color && transmission && fuelType && vin && licensePlate);
-  // }
-  //
-  // private buildYandexProfileCreationPayload(
-  //   deal: BitrixDealFields,
-  //   contact: BitrixContactFields,
-  //   workId: string,
-  // ): YandexFleetCreateContractorProfile {
-  //   const n = normalizeBitrixValue;
-  //
-  //   const phone = formatPhoneNumber(contact.PHONE?.[0]?.VALUE) || '';
-  //
-  //   return {
-  //     contractor: {
-  //       account: {
-  //         balance_limit: String(deal[BITRIX_FIELDS.BALANCE_LIMIT]) || '-1',
-  //         work_rule_id: workId,
-  //         block_orders_on_balance_below_limit: true,
-  //       },
-  //       person: {
-  //         full_name: {
-  //           first_name: contact.NAME || '',
-  //           last_name: contact.LAST_NAME || '',
-  //           middle_name: contact.SECOND_NAME || undefined,
-  //         },
-  //         contact_info: {
-  //           phone,
-  //           address: String(deal[BITRIX_FIELDS.ADDRESS_DISP]).split('|')[0].trim(),
-  //         },
-  //         driver_license: {
-  //           number: String(n(deal[BITRIX_FIELDS.DL_SERIES_NUMBER])),
-  //           issue_date:
-  //             formatDateForYandex(String(n(deal[BITRIX_FIELDS.DL_ISSUE_DATE]))) || '2020-01-01',
-  //           expiry_date:
-  //             formatDateForYandex(String(n(deal[BITRIX_FIELDS.DL_EXPIRY_DATE]))) || '2030-01-01',
-  //           country: mapBitrixCountryToYandex(deal[BITRIX_FIELDS.DL_COUNTRY_ISSUED]),
-  //           birth_date: formatDateForYandex(contact.BIRTHDATE)!,
-  //         },
-  //         driver_license_experience: {
-  //           total_since_date:
-  //             formatDateForYandex(String(n(deal[BITRIX_FIELDS.DRIVING_EXPERIENCE]))) ||
-  //             '2020-01-01',
-  //         },
-  //       },
-  //       profile: {
-  //         hire_date:
-  //           formatDateForYandex(String(n(deal[BITRIX_FIELDS.HIRE_DATE]) || '')) ||
-  //           new Date().toISOString().substring(0, 10),
-  //       },
-  //       order_provider: {
-  //         platform: ufValueToBool(deal[BITRIX_FIELDS.ORDER_PROVIDER_PLATFORM]),
-  //         partner: ufValueToBool(deal[BITRIX_FIELDS.ORDER_PROVIDER_PARTNER]),
-  //       },
-  //     },
-  //     profession: mapBitrixVacancyToYandexProfession(deal[BITRIX_FIELDS.VACANCY]),
-  //     employment: mapEmployment(
-  //       mapBitrixEmploymentTypeToYandex(deal[BITRIX_FIELDS.EMPLOYMENT_TYPE]),
-  //       mapBitrixTaxSystemToYandex(deal[BITRIX_FIELDS.TAX_SYSTEM_TYPE]),
-  //       phone,
-  //     ),
-  //   };
-  // }
 
   private buildYandexWalkCourierCreationPayload(
     data: YandexFleetCreateContractorProfile,
