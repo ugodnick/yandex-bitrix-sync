@@ -230,9 +230,9 @@ function scheduleProfileSync() {
       for (const parkId of yandexParkIds) {
         await profileService.syncProfileStages(parkId);
       }
-    } else if (mode === 'temp-hire-date-sync') {
+    } else if (mode === 'temp-update-deals-sync') {
       for (const parkId of yandexParkIds) {
-        await profileService.syncHireDates(parkId);
+        await profileService.updateDeals(parkId);
       }
     }
   };
@@ -240,9 +240,13 @@ function scheduleProfileSync() {
   cron.schedule('*/5 * * * *', () => enqueue('new', () => runSync('new')));
   cron.schedule('0 */2 * * *', () => enqueue('stages', () => runSync('stages')));
   cron.schedule('0 */2 * * *', () => enqueue('existing', () => runSync('existing')));
-  cron.schedule('0 */24 * * *', () => enqueue('existing', () => runSync('temp-hire-date-sync')), {
-    runOnInit: true,
-  });
+  cron.schedule(
+    '0 */24 * * *',
+    () => enqueue('existing', () => runSync('temp-update-deals-sync')),
+    {
+      runOnInit: true,
+    },
+  );
 }
 
 function scheduleOrdersSync() {
