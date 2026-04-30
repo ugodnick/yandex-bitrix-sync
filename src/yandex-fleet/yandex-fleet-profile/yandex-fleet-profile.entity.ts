@@ -17,8 +17,11 @@ export class YandexFleetProfileEntity {
   @Column({ type: 'varchar', name: 'bitrix_stage_id' })
   bitrixStageId: string;
 
-  @Column({ type: 'date', name: 'hire_date' })
-  hiredAt: Date;
+  @Column({ type: 'date', name: 'hire_date', nullable: true })
+  hiredAt: Date | null;
+
+  @Column({ type: 'date', name: 'fleet_created_date', nullable: false })
+  fleetCreatedAt: Date;
 
   @Column({ type: 'varchar', name: 'data_hash' })
   dataHash: string;

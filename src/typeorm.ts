@@ -7,7 +7,8 @@ export default new DataSource({
   database: join(__dirname, '..', '/data/database.sqlite'),
   entities: [__dirname + '/**/*.entity{.ts,.js}'],
   migrations: [join(__dirname, 'migrations/*{.ts,.js}')],
-  synchronize: true,
+  synchronize: false,
+  migrationsRun: true,
   logging: false,
   extra: {},
 });

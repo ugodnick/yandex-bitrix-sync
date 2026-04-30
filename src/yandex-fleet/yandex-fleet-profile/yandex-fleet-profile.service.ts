@@ -110,6 +110,68 @@ export class YandexFleetProfileService {
     }
   }
 
+  async syncHireDates(parkId: string): Promise<void> {
+    console.log(`[YandexFleetProfileService] Запуск синхронизации дат найма для парка: ${parkId}`);
+
+    const twoYearsAgo = new Date();
+    twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+
+    let offset = 0;
+    const limit = 50;
+    let total = 1;
+
+    try {
+      while (offset < total) {
+        const response = await this.yandexService.getProfiles(parkId, limit, offset, twoYearsAgo);
+
+        total = response.total;
+        const drivers = response.driver_profiles || [];
+
+        if (drivers.length === 0) break;
+
+        console.log(
+          `[YandexFleetProfileService] Обработка пачки: ${offset + 1} - ${offset + drivers.length} из ${total}...`,
+        );
+
+        for (const driver of drivers) {
+          try {
+            const localProfile = await this.yandexFleetProfileRepository.findOne({
+              where: { parkId, yandexProfileId: driver.driver_profile.id },
+            });
+
+            if (!localProfile) continue;
+
+            const profile = await this.yandexService.getProfile(parkId, driver.driver_profile.id);
+
+            const hireDate = profile.profile.hire_date ? new Date(profile.profile.hire_date) : null;
+            const createdDate = new Date(driver.driver_profile.created_date);
+
+            if (localProfile.hiredAt !== hireDate || localProfile.fleetCreatedAt !== createdDate) {
+              localProfile.fleetCreatedAt = createdDate;
+              localProfile.hiredAt = hireDate;
+              localProfile.dataHash = '';
+              await this.yandexFleetProfileRepository.save(localProfile);
+              console.log(
+                `[YandexFleetProfileService] Дата профиля ${driver.driver_profile.id} обновлена`,
+              );
+            }
+          } catch (error) {
+            console.error(
+              `[YandexFleetProfileService] Ошибка обработки водителя ${driver.driver_profile.id}:`,
+              error,
+            );
+          }
+        }
+
+        offset += limit;
+      }
+
+      console.log(`[YandexFleetProfileService] Синхронизация дат ${parkId} завершена.`);
+    } catch (error) {
+      console.error(`[YandexFleetProfileService] Ошибка синхронизации дат ${parkId}:`, error);
+    }
+  }
+
   async syncProfileStages(yandexParkId: string): Promise<void> {
     console.log(`[YandexFleetProfileService] Запуск синхронизации стадий: ${yandexParkId}`);
 
@@ -148,6 +210,13 @@ export class YandexFleetProfileService {
               lastOrderDate: IsNull(),
               hiredAt: LessThanOrEqual(thirtyDaysAgo),
             },
+            {
+              parkId: yandexParkId,
+              bitrixStageId: Not(In(stagesToSkip)),
+              lastOrderDate: IsNull(),
+              hiredAt: IsNull(),
+              fleetCreatedAt: LessThanOrEqual(thirtyDaysAgo),
+            },
           ],
           order: { yandexProfileId: 'ASC' },
           take: BATCH_SIZE,
@@ -166,7 +235,7 @@ export class YandexFleetProfileService {
 
             const nextStage = this.yandexFleetOrderService.resolveNextStage(
               lastOrders,
-              profile.hiredAt,
+              profile.hiredAt ?? profile.createAt,
             );
 
             if (!nextStage || nextStage === profile.bitrixStageId) continue;
@@ -307,7 +376,7 @@ export class YandexFleetProfileService {
     currentHash: string;
     lastOrderDate: Date | null;
     firstOrderDate: Date | null;
-    hiredAt: Date;
+    createdDate: Date;
     existingContactId?: number;
   }): Promise<void> {
     const {
@@ -319,7 +388,7 @@ export class YandexFleetProfileService {
       currentHash,
       lastOrderDate,
       firstOrderDate,
-      hiredAt,
+      createdDate,
       existingContactId,
     } = params;
 
@@ -357,7 +426,8 @@ export class YandexFleetProfileService {
       bitrixContactId: String(contactId),
       bitrixDealId: String(dealId),
       dataHash: currentHash,
-      hiredAt,
+      hiredAt: driverProfile.profile.hire_date,
+      fleetCreatedAt: createdDate,
       ...flat,
     });
 
@@ -374,6 +444,7 @@ export class YandexFleetProfileService {
     stage: string;
     currentHash: string;
     localState: YandexFleetProfileEntity;
+    createdDate: Date;
     lastOrderDate: Date | null;
     firstOrderDate: Date | null;
   }): Promise<void> {
@@ -387,6 +458,7 @@ export class YandexFleetProfileService {
       stage,
       lastOrderDate,
       firstOrderDate,
+      createdDate,
     } = params;
 
     const contactPayload = this.buildContactPayload(driverProfile);
@@ -405,6 +477,10 @@ export class YandexFleetProfileService {
     Object.assign(localState, flat);
     localState.dataHash = currentHash;
     localState.bitrixStageId = stage;
+    localState.hiredAt = driverProfile.profile.hire_date
+      ? new Date(driverProfile.profile.hire_date)
+      : null;
+    localState.fleetCreatedAt = createdDate;
     await this.yandexFleetProfileRepository.save(localState);
     console.log(
       `[YandexFleetProfileService] Профиль ${profileId} в парке ${parkId} обновлен. Сделка: ${String(localState.bitrixDealId)}. Контакт: ${String(localState.bitrixContactId)}`,
@@ -486,8 +562,6 @@ export class YandexFleetProfileService {
       }
     }
 
-    const hiredAt = new Date(driverProfile.profile.hire_date || driver.driver_profile.created_date);
-
     const lastOrders = await this.yandexFleetOrderRepository.find({
       where: { profileId, parkId },
       order: { bookedAt: 'DESC' },
@@ -495,7 +569,14 @@ export class YandexFleetProfileService {
     });
 
     let stage: string = localState ? localState.bitrixStageId : category.NotProcessed;
-    const nextStage = this.yandexFleetOrderService.resolveNextStage(lastOrders, hiredAt);
+    const createdDate = new Date(driver.driver_profile.created_date);
+    const hireDate = driverProfile.profile.hire_date
+      ? new Date(driverProfile.profile.hire_date)
+      : null;
+    const nextStage = this.yandexFleetOrderService.resolveNextStage(
+      lastOrders,
+      hireDate ?? createdDate,
+    );
 
     if (
       driver.driver_profile.work_status &&
@@ -515,10 +596,14 @@ export class YandexFleetProfileService {
         order: { bookedAt: 'ASC' },
       });
 
-      if (oldestLocalOrder && hiredAt >= oldestLocalOrder.bookedAt) {
+      if (oldestLocalOrder && (hireDate ?? createdDate) >= oldestLocalOrder.bookedAt) {
         firstOrderDate = oldestLocalOrder.bookedAt;
       } else if (!localState || wasLinked) {
-        firstOrderDate = await this.yandexService.getFirstOrderDate(parkId, profileId, hiredAt);
+        firstOrderDate = await this.yandexService.getFirstOrderDate(
+          parkId,
+          profileId,
+          hireDate ?? createdDate,
+        );
       }
     }
 
@@ -534,7 +619,7 @@ export class YandexFleetProfileService {
         currentHash,
         lastOrderDate,
         firstOrderDate,
-        hiredAt,
+        createdDate,
         existingContactId,
       });
       return;
@@ -548,6 +633,7 @@ export class YandexFleetProfileService {
         currentHash,
         localState,
         lastOrderDate,
+        createdDate,
         firstOrderDate,
       });
       return;
@@ -677,10 +763,7 @@ export class YandexFleetProfileService {
     if (matchedDeal) {
       const stage = matchedDeal.STAGE_ID;
       const hireDateRaw = matchedDeal[BITRIX_FIELDS.HIRE_DATE];
-      const hiredAt =
-        (hireDateRaw ? String(hireDateRaw) : undefined) ??
-        matchedDeal.DATE_CREATE ??
-        new Date().toISOString();
+      const hiredAt = hireDateRaw ? String(hireDateRaw) : null;
 
       const state = await this.yandexFleetProfileRepository.save({
         yandexProfileId: profileId,
@@ -690,6 +773,7 @@ export class YandexFleetProfileService {
         bitrixDealId: String(matchedDeal.ID),
         dataHash: calculateDriverHash(driverProfile, driverCar, stage),
         hiredAt,
+        fleetCreatedAt: matchedDeal.DATE_CREATE ? new Date(matchedDeal.DATE_CREATE) : new Date(),
         firstOrderDate: null,
         lastOrderDate: null,
         firstName: driverProfile.person.full_name.first_name || 'Неизвестно',

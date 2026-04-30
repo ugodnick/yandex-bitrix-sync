@@ -654,11 +654,8 @@ export class BitrixWebhookService {
 
     const stage = deal.STAGE_ID;
 
-    const hireDateRaw = deal[BITRIX_FIELDS.HIRE_DATE];
-    const hireDate =
-      (hireDateRaw ? String(hireDateRaw) : undefined) ??
-      deal.DATE_CREATE ??
-      new Date().toISOString();
+    const hireDate = deal[BITRIX_FIELDS.HIRE_DATE] ? new Date(String(deal[BITRIX_FIELDS.HIRE_DATE])) : null;
+    const fleetCreatedAt = deal.DATE_CREATE ? new Date(deal.DATE_CREATE) : new Date();
     const phone = formatPhoneNumber(contact.PHONE?.[0]?.VALUE);
 
     await this.yandexFleetProfileRepository.save({
@@ -669,6 +666,7 @@ export class BitrixWebhookService {
       dataHash,
       bitrixStageId: stage,
       hireDate,
+      fleetCreatedAt,
       firstName: contact.NAME,
       lastName: contact.LAST_NAME,
       middleName: contact.SECOND_NAME,
