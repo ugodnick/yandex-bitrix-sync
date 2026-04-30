@@ -1,5 +1,4 @@
 import { YandexFleetService } from '../yandex-fleet/yandex-fleet.service';
-import { YandexFleetWorkRuleService } from '../yandex-fleet/yandex-fleet-work-rule/yandex-fleet-work-rules.service';
 
 import {
   buildError,
@@ -18,9 +17,6 @@ import {
   ufValueToBool,
 } from './bitrix.utils';
 import {
-  YandexFleetCreateContractorProfile,
-  YandexFleetCreateWalkCourier,
-  YandexFleetCreateWalkSECourier,
   YandexFleetDriverProfile,
   YandexFleetUpdateCarRequest,
   YandexFleetVehicleData,
@@ -42,7 +38,6 @@ export class BitrixWebhookService {
   constructor(
     private yandexFleetProfileRepository: Repository<YandexFleetProfileEntity>,
     private yandexFleetService: YandexFleetService,
-    private yandexFleetWorkRuleService: YandexFleetWorkRuleService,
     private bitrixService: BitrixService,
   ) {}
 
@@ -54,7 +49,7 @@ export class BitrixWebhookService {
 
     try {
       if (event === 'ONCRMDEALUPDATE' || event === 'ONCRMDEALADD') {
-        await this.syncDealToYandexTest(entityId);
+        await this.syncDealToYandex(entityId);
       }
     } catch (error) {
       throw buildError(error, BitrixWebhookService.name);
@@ -64,9 +59,9 @@ export class BitrixWebhookService {
   private async syncDealToYandex(dealId: string): Promise<void> {
     const deal = await this.bitrixService.getDeal(dealId);
 
-    const category = deal.CATEGORY_ID;
+    const dealCategory = deal.CATEGORY_ID;
 
-    if (!category || category !== BitrixDealCategory.YANDEX_DELIVERY) return;
+    if (!dealCategory || dealCategory !== BitrixDealCategory.YANDEX_DELIVERY) return;
 
     const contactId = deal.CONTACT_ID;
     if (!contactId) return;
@@ -90,130 +85,54 @@ export class BitrixWebhookService {
 
     const yandexProfileId: string | null = (deal[BITRIX_FIELDS.PROFILE_ID] as string) || null;
 
-    if (!yandexProfileId) {
-    } else {
-      const localProfile = await this.yandexFleetProfileRepository.findOne({
-        where: { yandexProfileId },
-      });
-
-      const category = getBitrixCategory(targetYandexParkId);
-      const stagesToSkip: readonly string[] = [category.Archive, category.Refusal];
-
-      if (localProfile && stagesToSkip.includes(localProfile.bitrixStageId)) return;
-
-      if (localProfile && localProfile.dataHash !== calculateDriverHash(deal, contactData)) {
-        // const currentProfile = await this.yandexFleetService.getProfile(
-        //   targetYandexParkId,
-        //   yandexProfileId,
-        // );
-        //
-        // const updatedProfile = this.buildYandexProfileUpdatePayload(
-        //   currentProfile,
-        //   deal,
-        //   contactData,
-        // );
-        // if (deal.STAGE_ID === localProfile.bitrixStageId) {
-        //   if (currentProfile.car_id) {
-        //     const car = await this.yandexFleetService.getCar(
-        //       targetYandexParkId,
-        //       currentProfile.car_id,
-        //     );
-        //     const updatedCar = this.buildYandexCarUpdatePayload(car, deal);
-        //
-        //     if (updatedCar) {
-        //       await this.yandexFleetService.updateCar(
-        //         targetYandexParkId,
-        //         currentProfile.car_id,
-        //         updatedCar,
-        //       );
-        //     }
-        //   }
-        //
-        //   await this.yandexFleetService.updateProfile(
-        //     targetYandexParkId,
-        //     yandexProfileId,
-        //     updatedProfile,
-        //   );
-        // }
-
-        await this.saveLocalState(
-          yandexProfileId,
-          targetYandexParkId,
-          contactId,
-          dealId,
-          deal,
-          contactData,
-        );
-      }
-    }
-  }
-
-  private async syncDealToYandexTest(dealId: string): Promise<void> {
-    const deal = await this.bitrixService.getDeal(dealId);
-    console.log(`[Webhook] dealId=${dealId}, category=${deal.CATEGORY_ID}, stage=${deal.STAGE_ID}`);
-
-    const category = deal.CATEGORY_ID;
-    if (!category || category !== BitrixDealCategory.YANDEX_DELIVERY) {
-      console.log(`[Webhook] Выход: категория не YANDEX_DELIVERY (${category})`);
-      return;
-    }
-
-    const contactId = deal.CONTACT_ID;
-    if (!contactId) {
-      console.log(`[Webhook] Выход: нет CONTACT_ID`);
-      return;
-    }
-
-    const bitrixDispatcherField = deal[BITRIX_FIELDS.DISPATCHER];
-    const dispatcherId = bitrixDispatcherField
-      ? Array.isArray(bitrixDispatcherField) && bitrixDispatcherField.length > 0
-        ? String(bitrixDispatcherField[0])
-        : String(bitrixDispatcherField)
-      : '';
-
-    const targetYandexParkId = BITRIX_TO_YANDEX_PARK[dispatcherId];
-    if (!targetYandexParkId) {
-      console.log(`[Webhook] Выход: нет парка для dispatcher=${dispatcherId}`);
-      return;
-    }
-
-    const contactData = await this.bitrixService.getContact(String(contactId));
-    if (!contactData) {
-      console.log(`[Webhook] Выход: контакт ${contactId} не найден`);
-      return;
-    }
-
-    const phone = formatPhoneNumber(contactData.PHONE?.[0]?.VALUE);
-    if (!phone) {
-      console.log(`[Webhook] Выход: нет телефона у контакта ${contactId}`);
-      return;
-    }
-
-    const yandexProfileId: string | null = (deal[BITRIX_FIELDS.PROFILE_ID] as string) || null;
-    console.log(`[Webhook] yandexProfileId=${yandexProfileId}`);
-
-    if (!yandexProfileId) {
-      console.log(`[Webhook] Выход: пустой yandexProfileId`);
-      return;
-    }
+    if (!yandexProfileId) return;
 
     const localProfile = await this.yandexFleetProfileRepository.findOne({
       where: { yandexProfileId },
     });
-    console.log(`[Webhook] localProfile=${!!localProfile}, currentHash=${localProfile?.dataHash}`);
 
-    const cat = getBitrixCategory(targetYandexParkId);
-    const stagesToSkip: readonly string[] = [cat.Archive, cat.Refusal];
+    if (localProfile && localProfile.dataHash !== calculateDriverHash(deal, contactData)) {
+      const category = getBitrixCategory(targetYandexParkId);
+      const stagesToSkip: readonly string[] = [category.Archive, category.Refusal];
 
-    if (localProfile && stagesToSkip.includes(localProfile.bitrixStageId)) {
-      console.log(`[Webhook] Выход: стадия в skip-листе (${localProfile.bitrixStageId})`);
-      return;
-    }
+      if (
+        deal.STAGE_ID === localProfile.bitrixStageId &&
+        !stagesToSkip.includes(localProfile.bitrixStageId)
+      ) {
+        const currentProfile = await this.yandexFleetService.getProfile(
+          targetYandexParkId,
+          yandexProfileId,
+        );
 
-    const newHash = localProfile ? calculateDriverHash(deal, contactData) : '';
-    console.log(`[Webhook] newHash=${newHash}, equal=${localProfile?.dataHash === newHash}`);
+        const updatedProfile = this.buildYandexProfileUpdatePayload(
+          currentProfile,
+          deal,
+          contactData,
+        );
 
-    if (localProfile && localProfile.dataHash !== newHash) {
+        if (currentProfile.car_id) {
+          const car = await this.yandexFleetService.getCar(
+            targetYandexParkId,
+            currentProfile.car_id,
+          );
+          const updatedCar = this.buildYandexCarUpdatePayload(car, deal);
+
+          if (updatedCar) {
+            await this.yandexFleetService.updateCar(
+              targetYandexParkId,
+              currentProfile.car_id,
+              updatedCar,
+            );
+          }
+        }
+
+        await this.yandexFleetService.updateProfile(
+          targetYandexParkId,
+          yandexProfileId,
+          updatedProfile,
+        );
+      }
+
       await this.saveLocalState(
         yandexProfileId,
         targetYandexParkId,
@@ -222,33 +141,7 @@ export class BitrixWebhookService {
         deal,
         contactData,
       );
-      console.log(`[Webhook] Хеш сохранён для ${yandexProfileId}`);
-    } else {
-      console.log(`[Webhook] saveLocalState не вызван`);
     }
-  }
-
-  private buildYandexWalkCourierCreationPayload(
-    data: YandexFleetCreateContractorProfile,
-  ): YandexFleetCreateWalkCourier {
-    return {
-      full_name: data.contractor.person.full_name,
-      phone: data.contractor.person.contact_info.phone,
-      birth_date: data.contractor.person.driver_license.birth_date,
-      work_rule_id: data.contractor.account?.work_rule_id,
-    };
-  }
-
-  private buildYandexWalkCourierSECreationPayload(
-    data: YandexFleetCreateContractorProfile,
-  ): YandexFleetCreateWalkSECourier {
-    return {
-      profile: this.buildYandexWalkCourierCreationPayload(data),
-      selfemployed: {
-        address: data.contractor.person.contact_info.address,
-        phone: data.contractor.person.contact_info.phone,
-      },
-    };
   }
 
   private buildYandexProfileUpdatePayload(
@@ -505,25 +398,6 @@ export class BitrixWebhookService {
 
     return payload;
   }
-
-  // private buildYandexCarCreatePayload(deal: BitrixDealFields): YandexFleetUpdateCarRequest | null {
-  //   const vehicleSpecifications = this.extractVehicleSpecifications(deal);
-  //   const vehicleLicenses = this.extractVehicleLicenses(deal);
-  //   const parkProfile = this.extractParkProfile(deal);
-  //
-  //   if (!vehicleSpecifications || !vehicleLicenses || !parkProfile) return null;
-  //
-  //   const payload: YandexFleetUpdateCarRequest = {
-  //     vehicle_specifications: vehicleSpecifications,
-  //     vehicle_licenses: vehicleLicenses,
-  //     park_profile: parkProfile,
-  //   };
-  //
-  //   const cargo = this.extractCargo(deal);
-  //   if (cargo) payload.cargo = cargo;
-  //
-  //   return payload;
-  // }
 
   private async saveLocalState(
     yandexProfileId: string,

@@ -300,8 +300,10 @@ export class YandexFleetProfileService {
     const vehicleSpecifications = driverCar?.vehicle_specifications;
     const vehiclePark = driverCar?.park_profile;
     const vehicleLicenses = driverCar?.vehicle_licenses;
+    const bitrixDispatcherId = YANDEX_TO_BITRIX_PARK[parkId];
 
     return cleanPayload({
+      [BITRIX_FIELDS.DISPATCHER]: bitrixDispatcherId,
       [BITRIX_FIELDS.BIRTH_DATE]: formatDateForBitrix(dl.birth_date),
       [BITRIX_FIELDS.FIRST_NAME_DISP]: firstName,
       [BITRIX_FIELDS.LAST_NAME_DISP]: lastName,
@@ -385,12 +387,6 @@ export class YandexFleetProfileService {
       existingContactId,
     } = params;
 
-    const bitrixDispatcherId = YANDEX_TO_BITRIX_PARK[parkId];
-    if (!bitrixDispatcherId) {
-      console.warn(`[YandexFleetProfileService] Внимание! Парк ${parkId} не найден.`);
-      return;
-    }
-
     const flat = this.extractFlatFields(driverProfile, driverCar, lastOrderDate, firstOrderDate);
     const contactPayload = this.buildContactPayload(driverProfile);
     const dealPayload = this.buildDealPayload(profileId, parkId, driverProfile, driverCar, true);
@@ -408,7 +404,6 @@ export class YandexFleetProfileService {
       TITLE: `${flat.lastName} ${flat.firstName}`,
       CONTACT_ID: contactId,
       CATEGORY_ID: mapCategory(parkId),
-      [BITRIX_FIELDS.DISPATCHER]: bitrixDispatcherId,
       ...dealPayload,
     });
 

@@ -52,7 +52,6 @@ function initServices(database: DataSource): void {
       new BitrixWebhookService(
         yandexFleetProfileRepository,
         container.get(YandexFleetService),
-        container.get(YandexFleetWorkRuleService),
         container.get(BitrixService),
       ),
   );
@@ -239,14 +238,16 @@ function scheduleProfileSync() {
 
   cron.schedule('*/5 * * * *', () => enqueue('new', () => runSync('new')));
   cron.schedule('0 */2 * * *', () => enqueue('stages', () => runSync('stages')));
-  cron.schedule('0 */2 * * *', () => enqueue('existing', () => runSync('existing')));
-  cron.schedule(
-    '0 */24 * * *',
-    () => enqueue('existing', () => runSync('temp-update-deals-sync')),
-    {
-      runOnInit: true,
-    },
-  );
+  cron.schedule('0 */6 * * *', () => enqueue('existing', () => runSync('existing')), {
+    runOnInit: true,
+  });
+  // cron.schedule(
+  //   '0 */24 * * *',
+  //   () => enqueue('existing', () => runSync('temp-update-deals-sync')),
+  //   {
+  //     runOnInit: true,
+  //   },
+  // );
 }
 
 function scheduleOrdersSync() {
