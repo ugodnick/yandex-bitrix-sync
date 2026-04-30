@@ -53,8 +53,11 @@ export class YandexFleetProfileService {
       `[YandexFleetProfileService] Запуск синхронизации ${newOnly ? 'новых' : 'всех'} профилей: ${yandexParkId}`,
     );
     try {
-      const oneDayAgo = new Date();
-      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+      const oneHourAgo = new Date();
+      oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+
+      const threeHourAgo = new Date();
+      threeHourAgo.setHours(threeHourAgo.getHours() - 2);
 
       let offset = 0;
       const limit = newOnly ? 100 : 25;
@@ -65,7 +68,7 @@ export class YandexFleetProfileService {
           yandexParkId,
           limit,
           offset,
-          oneDayAgo,
+          newOnly ? oneHourAgo : threeHourAgo,
         );
 
         total = response.total;
@@ -464,6 +467,8 @@ export class YandexFleetProfileService {
       }
     }
 
+    let wasLinked = false;
+
     if (needsRelink) {
       const result = await this.findAndLinkExistingBitrixProfile(
         parkId,
@@ -475,6 +480,7 @@ export class YandexFleetProfileService {
 
       if (result.kind === 'linked') {
         localState = result.state;
+        wasLinked = true;
       } else if (result.kind === 'contact-only') {
         existingContactId = result.contactId;
       }
@@ -511,7 +517,7 @@ export class YandexFleetProfileService {
 
       if (oldestLocalOrder && hiredAt >= oldestLocalOrder.bookedAt) {
         firstOrderDate = oldestLocalOrder.bookedAt;
-      } else {
+      } else if (!localState || wasLinked) {
         firstOrderDate = await this.yandexService.getFirstOrderDate(parkId, profileId, hiredAt);
       }
     }

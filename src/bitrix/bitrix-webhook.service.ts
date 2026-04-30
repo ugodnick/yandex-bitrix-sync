@@ -155,28 +155,29 @@ export class BitrixWebhookService {
           deal,
           contactData,
         );
-
-        if (currentProfile.car_id) {
-          const car = await this.yandexFleetService.getCar(
-            targetYandexParkId,
-            currentProfile.car_id,
-          );
-          const updatedCar = this.buildYandexCarUpdatePayload(car, deal);
-
-          if (updatedCar) {
-            await this.yandexFleetService.updateCar(
+        if (deal.STAGE_ID === localProfile.bitrixStageId) {
+          if (currentProfile.car_id) {
+            const car = await this.yandexFleetService.getCar(
               targetYandexParkId,
               currentProfile.car_id,
-              updatedCar,
             );
-          }
-        }
+            const updatedCar = this.buildYandexCarUpdatePayload(car, deal);
 
-        await this.yandexFleetService.updateProfile(
-          targetYandexParkId,
-          yandexProfileId,
-          updatedProfile,
-        );
+            if (updatedCar) {
+              await this.yandexFleetService.updateCar(
+                targetYandexParkId,
+                currentProfile.car_id,
+                updatedCar,
+              );
+            }
+          }
+
+          await this.yandexFleetService.updateProfile(
+            targetYandexParkId,
+            yandexProfileId,
+            updatedProfile,
+          );
+        }
 
         await this.saveLocalState(
           yandexProfileId,
