@@ -666,7 +666,7 @@ export class BitrixWebhookService {
       bitrixContactId: String(bitrixContactId),
       bitrixDealId: String(bitrixDealId),
       dataHash,
-      stage,
+      bitrixStageId: stage,
       hireDate,
       firstName: contact.NAME,
       lastName: contact.LAST_NAME,

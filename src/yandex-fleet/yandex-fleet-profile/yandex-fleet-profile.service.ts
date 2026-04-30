@@ -57,7 +57,7 @@ export class YandexFleetProfileService {
       oneDayAgo.setDate(oneDayAgo.getDate() - 1);
 
       let offset = 0;
-      const limit = 100;
+      const limit = newOnly ? 100 : 25;
       let total = 1;
 
       while (offset < total) {

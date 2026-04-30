@@ -175,7 +175,7 @@ export function calculateDriverHash(
     middleName: person.full_name.middle_name,
     employmentType: person.employment_type,
     address: person.contact_info?.address,
-    comment: driverProfile.profile.comment,
+    comment: undefined,
 
     balanceLimit: driverProfile.account.balance_limit,
 

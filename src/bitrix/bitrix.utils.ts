@@ -244,7 +244,7 @@ export const calculateDriverHash = (deal: BitrixDealFields, contact: BitrixConta
     address: deal[BITRIX_FIELDS.ADDRESS_DISP]
       ? String(deal[BITRIX_FIELDS.ADDRESS_DISP]).split('|')[0].trim()
       : undefined,
-    comment: deal.COMMENTS ?? undefined,
+    comment: undefined,
 
     balanceLimit: deal[BITRIX_FIELDS.BALANCE_LIMIT],
 
