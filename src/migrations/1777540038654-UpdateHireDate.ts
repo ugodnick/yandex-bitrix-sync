@@ -38,7 +38,7 @@ export class UpdateHireDate1777540038654 implements MigrationInterface {
         "last_order_date", "updated_at", "create_at"
       )
       SELECT
-        "yandex_profile_id", "park_id", "bitrix_contact_id", "bitrix_deal_id", "bitrix_stage_id",
+        "yandexProfileId", "park_id", "bitrix_contact_id", "bitrix_deal_id", "bitrix_stage_id",
         "hire_date", "hire_date", "data_hash", "first_name", "last_name", "middle_name",
         "phone", "employment_type", "work_rule_id", "vehicle_type", "first_order_date",
         "last_order_date", "updated_at", "create_at"
@@ -56,7 +56,7 @@ export class UpdateHireDate1777540038654 implements MigrationInterface {
 
     await queryRunner.query(`
       CREATE TABLE "yandex_fleet_profile_temp" (
-       "yandex_profile_id" varchar PRIMARY KEY NOT NULL,
+       "yandexProfileId" varchar PRIMARY KEY NOT NULL,
        "park_id" varchar NOT NULL,
        "bitrix_contact_id" varchar NOT NULL,
        "bitrix_deal_id" varchar NOT NULL,
@@ -79,7 +79,7 @@ export class UpdateHireDate1777540038654 implements MigrationInterface {
 
     await queryRunner.query(`
       INSERT INTO "yandex_fleet_profile_temp" (
-        "yandex_profile_id", "park_id", "bitrix_contact_id", "bitrix_deal_id", "bitrix_stage_id",
+        "yandexProfileId", "park_id", "bitrix_contact_id", "bitrix_deal_id", "bitrix_stage_id",
         "hire_date", "data_hash", "first_name", "last_name", "middle_name",
         "phone", "employment_type", "work_rule_id", "vehicle_type", "first_order_date",
         "last_order_date", "updated_at", "create_at"

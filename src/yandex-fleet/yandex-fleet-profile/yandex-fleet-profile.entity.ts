@@ -2,7 +2,7 @@ import { Entity, PrimaryColumn, Column, UpdateDateColumn, CreateDateColumn } fro
 
 @Entity('yandex_fleet_profile')
 export class YandexFleetProfileEntity {
-  @PrimaryColumn({ type: 'varchar' })
+  @PrimaryColumn({ type: 'varchar', name: 'yandex_profile_id' })
   yandexProfileId: string;
 
   @Column({ type: 'varchar', name: 'park_id' })
