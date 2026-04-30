@@ -4,6 +4,8 @@ export class UpdateHireDate1777540038654 implements MigrationInterface {
   name = 'UpdateHireDate1777540038654';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP TABLE IF EXISTS "yandex_fleet_profile_temp"`);
+
     await queryRunner.query(`
       CREATE TABLE "yandex_fleet_profile_temp" (
        "yandex_profile_id" varchar PRIMARY KEY NOT NULL,
@@ -50,6 +52,8 @@ export class UpdateHireDate1777540038654 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP TABLE IF EXISTS "yandex_fleet_profile_temp"`);
+
     await queryRunner.query(`
       CREATE TABLE "yandex_fleet_profile_temp" (
        "yandex_profile_id" varchar PRIMARY KEY NOT NULL,
