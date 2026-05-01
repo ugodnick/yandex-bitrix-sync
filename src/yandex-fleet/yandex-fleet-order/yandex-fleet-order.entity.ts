@@ -18,7 +18,14 @@ export class YandexFleetOrderEntity {
   @Column({ type: 'varchar' })
   status: OrderStatus;
 
-  @Column({ type: 'datetime', name: 'booked_at' })
+  @Column({
+    type: 'datetime',
+    name: 'booked_at',
+    transformer: {
+      to: (value: Date | null) => value,
+      from: (value: string | null) => (value ? new Date(value) : null),
+    },
+  })
   bookedAt: Date;
 
   @Column({ type: 'varchar', name: 'price', default: 'Неизвестно' })

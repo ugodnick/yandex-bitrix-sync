@@ -53,11 +53,11 @@ export class YandexFleetProfileService {
       `[YandexFleetProfileService] Запуск синхронизации ${newOnly ? 'новых' : 'всех'} профилей: ${yandexParkId}`,
     );
     try {
-      const oneHourAgo = new Date();
-      oneHourAgo.setHours(oneHourAgo.getHours() - 1);
-
       const twelveHoursAgo = new Date();
       twelveHoursAgo.setHours(twelveHoursAgo.getHours() - 12);
+
+      const twoYearsAgo = new Date();
+      twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 12);
 
       let offset = 0;
       const limit = newOnly ? 100 : 25;
@@ -68,7 +68,7 @@ export class YandexFleetProfileService {
           yandexParkId,
           limit,
           offset,
-          newOnly ? oneHourAgo : twelveHoursAgo,
+          newOnly ? twelveHoursAgo : twoYearsAgo,
         );
 
         total = response.total;
@@ -110,64 +110,8 @@ export class YandexFleetProfileService {
     }
   }
 
-  async updateDeals(yandexParkId: string): Promise<void> {
-    console.log(`[YandexFleetProfileService] Запуск синхронизации сделок: ${yandexParkId}`);
-
-    const BATCH_SIZE = 200;
-    let offset = 0;
-    let updated = 0;
-
-    try {
-      while (true) {
-        const profiles = await this.yandexFleetProfileRepository.find({
-          where: [
-            {
-              parkId: yandexParkId,
-              dataHash: '',
-            },
-          ],
-          order: { yandexProfileId: 'ASC' },
-          take: BATCH_SIZE,
-          skip: offset,
-        });
-
-        if (profiles.length === 0) break;
-
-        for (const profile of profiles) {
-          try {
-            await this.bitrixService.updateDeal(profile.bitrixDealId, {
-              [BITRIX_FIELDS.HIRE_DATE]: formatDateForBitrix(profile.hiredAt?.toString()),
-              STAGE_ID: profile.bitrixStageId,
-            });
-            console.log(`[YandexFleetProfileService] Сделка ${profile.bitrixDealId} обновлена`);
-            updated++;
-          } catch (error) {
-            console.error(
-              `[YandexFleetProfileService] Ошибка обновления сделки для ${profile.yandexProfileId}:`,
-              error,
-            );
-          }
-        }
-
-        offset += BATCH_SIZE;
-      }
-
-      console.log(
-        `[YandexFleetProfileService] Синхронизация сделок ${yandexParkId} завершена. Обновлено: ${updated}.`,
-      );
-    } catch (error) {
-      console.error(
-        `[YandexFleetProfileService] Ошибка синхронизации сделки ${yandexParkId}:`,
-        error,
-      );
-    }
-  }
-
   async syncProfileStages(yandexParkId: string): Promise<void> {
     console.log(`[YandexFleetProfileService] Запуск синхронизации стадий: ${yandexParkId}`);
-
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -193,7 +137,7 @@ export class YandexFleetProfileService {
             {
               parkId: yandexParkId,
               bitrixStageId: Not(In(stagesToSkip)),
-              lastOrderDate: LessThanOrEqual(sevenDaysAgo),
+              lastOrderDate: LessThanOrEqual(thirtyDaysAgo),
             },
             {
               parkId: yandexParkId,
@@ -226,20 +170,18 @@ export class YandexFleetProfileService {
 
             const nextStage = this.yandexFleetOrderService.resolveNextStage(
               lastOrders,
-              profile.hiredAt ?? profile.createAt,
+              profile.hiredAt ?? profile.fleetCreatedAt,
             );
 
             if (!nextStage || nextStage === profile.bitrixStageId) continue;
-
-            await this.bitrixService.updateDeal(profile.bitrixDealId, {
-              STAGE_ID: nextStage,
-            });
 
             profile.bitrixStageId = nextStage;
             profile.dataHash = '';
             await this.yandexFleetProfileRepository.save(profile);
 
-            await this.bitrixService.updateDeal(profile.bitrixDealId, { STAGE_ID: nextStage });
+            await this.bitrixService.updateDeal(profile.bitrixDealId, {
+              STAGE_ID: nextStage,
+            });
 
             updated++;
           } catch (error) {
@@ -314,6 +256,7 @@ export class YandexFleetProfileService {
       [BITRIX_FIELDS.CONTRACTOR_TYPE]: mapContractorType(driverCar),
       [BITRIX_FIELDS.AGGREGATOR]: mapAggregator(parkId),
       [BITRIX_FIELDS.HIRE_DATE]: formatDateForBitrix(profile.hire_date),
+      CATEGORY_ID: mapCategory(parkId),
       COMMENTS: profile.comment,
 
       // ВУ
@@ -403,7 +346,6 @@ export class YandexFleetProfileService {
       STAGE_ID: stage,
       TITLE: `${flat.lastName} ${flat.firstName}`,
       CONTACT_ID: contactId,
-      CATEGORY_ID: mapCategory(parkId),
       ...dealPayload,
     });
 
@@ -414,7 +356,7 @@ export class YandexFleetProfileService {
       bitrixContactId: String(contactId),
       bitrixDealId: String(dealId),
       dataHash: currentHash,
-      hiredAt: driverProfile.profile.hire_date,
+      hiredAt: driverProfile.profile.hire_date ? new Date(driverProfile.profile.hire_date) : null,
       fleetCreatedAt: createdDate,
       ...flat,
     });
@@ -626,8 +568,8 @@ export class YandexFleetProfileService {
       });
       return;
     } else if (
-      localState.lastOrderDate !== lastOrderDate ||
-      localState.firstOrderDate !== firstOrderDate
+      localState.lastOrderDate?.getTime() !== lastOrderDate?.getTime() ||
+      localState.firstOrderDate?.getTime() !== firstOrderDate?.getTime()
     ) {
       localState.lastOrderDate = lastOrderDate;
       localState.firstOrderDate = firstOrderDate;

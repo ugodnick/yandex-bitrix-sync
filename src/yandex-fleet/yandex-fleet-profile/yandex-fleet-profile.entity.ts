@@ -1,5 +1,10 @@
 import { Entity, PrimaryColumn, Column, UpdateDateColumn, CreateDateColumn } from 'typeorm';
 
+const dateTransformer = {
+  to: (value: Date | null) => value,
+  from: (value: string | null) => (value ? new Date(value) : null),
+};
+
 @Entity('yandex_fleet_profile')
 export class YandexFleetProfileEntity {
   @PrimaryColumn({ type: 'varchar', name: 'yandex_profile_id' })
@@ -17,10 +22,20 @@ export class YandexFleetProfileEntity {
   @Column({ type: 'varchar', name: 'bitrix_stage_id' })
   bitrixStageId: string;
 
-  @Column({ type: 'date', name: 'hire_date', nullable: true })
+  @Column({
+    type: 'date',
+    name: 'hire_date',
+    nullable: true,
+    transformer: dateTransformer,
+  })
   hiredAt: Date | null;
 
-  @Column({ type: 'date', name: 'fleet_created_date', nullable: false })
+  @Column({
+    type: 'date',
+    name: 'fleet_created_date',
+    nullable: false,
+    transformer: dateTransformer,
+  })
   fleetCreatedAt: Date;
 
   @Column({ type: 'varchar', name: 'data_hash' })
@@ -47,10 +62,10 @@ export class YandexFleetProfileEntity {
   @Column({ type: 'varchar', name: 'vehicle_type', nullable: true })
   vehicleType: string | null;
 
-  @Column({ type: 'date', name: 'first_order_date', nullable: true })
+  @Column({ type: 'date', name: 'first_order_date', nullable: true, transformer: dateTransformer })
   firstOrderDate: Date | null;
 
-  @Column({ type: 'date', name: 'last_order_date', nullable: true })
+  @Column({ type: 'date', name: 'last_order_date', nullable: true, transformer: dateTransformer })
   lastOrderDate: Date | null;
 
   @UpdateDateColumn({ name: 'updated_at' })
