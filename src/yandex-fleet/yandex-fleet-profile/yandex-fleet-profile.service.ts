@@ -53,11 +53,11 @@ export class YandexFleetProfileService {
       `[YandexFleetProfileService] Запуск синхронизации ${newOnly ? 'новых' : 'всех'} профилей: ${yandexParkId}`,
     );
     try {
+      const oneHourAgo = new Date();
+      oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+
       const twelveHoursAgo = new Date();
       twelveHoursAgo.setHours(twelveHoursAgo.getHours() - 12);
-
-      const twoYearsAgo = new Date();
-      twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 12);
 
       let offset = 0;
       const limit = newOnly ? 100 : 25;
@@ -68,7 +68,7 @@ export class YandexFleetProfileService {
           yandexParkId,
           limit,
           offset,
-          newOnly ? twelveHoursAgo : twoYearsAgo,
+          newOnly ? oneHourAgo : twelveHoursAgo,
         );
 
         total = response.total;
