@@ -74,7 +74,7 @@ export class YandexFleetProfileService {
           yandexParkId,
           limit,
           offset,
-          newOnly ? twelveHoursAgo : twoYearsAgo,
+          newOnly ? oneHoursAgo : threeHoursAgo,
         );
 
         total = response.total;

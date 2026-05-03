@@ -134,7 +134,7 @@ function scheduleGoogleSheetExport() {
         isSyncing = false;
       }
     },
-    { timezone: 'Asia/Vladivostok' },
+    { timezone: 'Asia/Vladivostok', runOnInit: true },
   );
 }
 
@@ -234,9 +234,7 @@ function scheduleProfileSync() {
 
   cron.schedule('*/5 * * * *', () => enqueue('new', () => runSync('new')));
   cron.schedule('0 */2 * * *', () => enqueue('stages', () => runSync('stages')));
-  cron.schedule('0 */24 * * *', () => enqueue('existing', () => runSync('existing')), {
-    runOnInit: true,
-  });
+  cron.schedule('0 */2 * * *', () => enqueue('existing', () => runSync('existing')));
 }
 
 function scheduleOrdersSync() {
