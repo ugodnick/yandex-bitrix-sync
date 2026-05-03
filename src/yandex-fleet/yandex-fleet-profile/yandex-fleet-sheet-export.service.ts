@@ -34,7 +34,7 @@ export class YandexFleetSheetExportService {
       const profiles = await this.yandexFleetProfileRepository.find({
         take: BATCH_SIZE,
         skip: offset,
-        order: { hiredAt: 'DESC' },
+        order: { fleetCreatedAt: 'DESC' },
       });
       if (profiles.length === 0) break;
 
@@ -92,6 +92,7 @@ export class YandexFleetSheetExportService {
       p.yandexProfileId,
       [p.lastName, p.firstName, p.middleName].filter(Boolean).join(' '),
       p.phone ? p.phone.replace(/^\+/, '') : '',
+      p.fleetCreatedAt ? formatDate(p.fleetCreatedAt) : '',
       p.hiredAt ? formatDate(p.hiredAt) : '',
       p.firstOrderDate ? formatDate(p.firstOrderDate) : '',
       p.lastOrderDate ? formatDate(p.lastOrderDate) : '',
@@ -100,6 +101,7 @@ export class YandexFleetSheetExportService {
       p.vehicleType ?? '',
       stageToStatus(p.bitrixStageId),
       parkName,
+      'https://fleet.yandex.ru/contractors/' + p.yandexProfileId + '/details?park_id=' + p.parkId,
     ];
   }
 

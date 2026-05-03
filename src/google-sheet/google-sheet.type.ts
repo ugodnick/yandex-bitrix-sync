@@ -9,6 +9,7 @@ export enum ContractorsColumn {
   Id = 'ID',
   FullName = 'ФИО',
   Phone = 'Телефон',
+  DateCreated = 'Дата создания профиля',
   DateHired = 'Дата принятия',
   FirstOrderDate = 'Дата первого заказа',
   LastOrderDate = 'Дата последнего заказа',
@@ -17,6 +18,7 @@ export enum ContractorsColumn {
   MovementType = 'Тип передвижения',
   Status = 'Статус',
   Park = 'Парк',
+  Link = 'Ссылка на профиль',
 }
 
 export enum OrdersColumn {
@@ -50,6 +52,7 @@ export const SHEET_COLUMN_ORDER: {
     ContractorsColumn.Id,
     ContractorsColumn.FullName,
     ContractorsColumn.Phone,
+    ContractorsColumn.DateCreated,
     ContractorsColumn.DateHired,
     ContractorsColumn.FirstOrderDate,
     ContractorsColumn.LastOrderDate,
@@ -58,6 +61,7 @@ export const SHEET_COLUMN_ORDER: {
     ContractorsColumn.MovementType,
     ContractorsColumn.Status,
     ContractorsColumn.Park,
+    ContractorsColumn.Link,
   ],
   [SheetName.Orders]: [
     OrdersColumn.ContractorId,

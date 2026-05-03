@@ -134,7 +134,7 @@ function scheduleGoogleSheetExport() {
         isSyncing = false;
       }
     },
-    { timezone: 'Asia/Vladivostok' },
+    { timezone: 'Asia/Vladivostok', runOnInit: true },
   );
 }
 
