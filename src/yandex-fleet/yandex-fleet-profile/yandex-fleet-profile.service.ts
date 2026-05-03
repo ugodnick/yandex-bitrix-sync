@@ -575,10 +575,12 @@ export class YandexFleetProfileService {
       return;
     } else if (
       localState.lastOrderDate?.getTime() !== lastOrderDate?.getTime() ||
-      localState.firstOrderDate?.getTime() !== firstOrderDate?.getTime()
+      localState.firstOrderDate?.getTime() !== firstOrderDate?.getTime() ||
+      localState.fleetCreatedAt?.getTime() !== createdDate.getTime()
     ) {
       localState.lastOrderDate = lastOrderDate;
       localState.firstOrderDate = firstOrderDate;
+      localState.fleetCreatedAt = createdDate;
       await this.yandexFleetProfileRepository.save(localState);
     }
   }
