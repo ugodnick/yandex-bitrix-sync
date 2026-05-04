@@ -1,5 +1,16 @@
 import { Entity, PrimaryColumn, Column, UpdateDateColumn, CreateDateColumn } from 'typeorm';
 
+export const utcDateTimeTransformer = {
+  to: (value: Date | null | undefined) => {
+    if (!value) return value;
+    return value.toISOString();
+  },
+  from: (value: string | null) => {
+    if (!value) return value;
+    return new Date(value);
+  },
+};
+
 const dateTransformer = {
   to: (value: Date | null) => value,
   from: (value: string | null) => (value ? new Date(value) : null),
@@ -31,10 +42,10 @@ export class YandexFleetProfileEntity {
   hiredAt: Date | null;
 
   @Column({
-    type: 'date',
+    type: 'datetime',
     name: 'fleet_created_date',
     nullable: false,
-    transformer: dateTransformer,
+    transformer: utcDateTimeTransformer,
   })
   fleetCreatedAt: Date;
 

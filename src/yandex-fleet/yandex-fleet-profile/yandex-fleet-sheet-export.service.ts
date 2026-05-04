@@ -2,7 +2,12 @@ import { MoreThan, Repository } from 'typeorm';
 import { YandexFleetProfileEntity } from './yandex-fleet-profile.entity';
 import { GoogleSheetsAPIService } from '../../google-sheet/google-sheet.service';
 import { SheetName } from '../../google-sheet/google-sheet.type';
-import { formatDate, mapOrderStatusName, stageToStatus } from '../yandex-fleet.utils';
+import {
+  formatDate,
+  formatDateInTz,
+  mapOrderStatusName,
+  stageToStatus,
+} from '../yandex-fleet.utils';
 import { YandexFleetWorkRuleEntity } from '../yandex-fleet-work-rule/yandex-fleet-work-rule.entity';
 import { YandexFleetOrderEntity } from '../yandex-fleet-order/yandex-fleet-order.entity';
 import { mapParkName } from '../../bitrix/bitrix.utils';
@@ -92,7 +97,7 @@ export class YandexFleetSheetExportService {
       p.yandexProfileId,
       [p.lastName, p.firstName, p.middleName].filter(Boolean).join(' '),
       p.phone ? p.phone.replace(/^\+/, '') : '',
-      p.fleetCreatedAt ? formatDate(p.fleetCreatedAt) : '',
+      p.fleetCreatedAt ? formatDateInTz(p.fleetCreatedAt) : '',
       p.hiredAt ? formatDate(p.hiredAt) : '',
       p.firstOrderDate ? formatDate(p.firstOrderDate) : '',
       p.lastOrderDate ? formatDate(p.lastOrderDate) : '',

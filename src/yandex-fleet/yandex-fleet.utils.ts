@@ -217,6 +217,24 @@ export function formatDate(date: Date | string): string {
   return d.toLocaleDateString('ru-RU');
 }
 
+export function formatDateInTz(date: Date, withTime = false): string {
+  const options: Intl.DateTimeFormatOptions = {
+    timeZone: 'Asia/Vladivostok',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  };
+
+  if (withTime) {
+    options.hour = '2-digit';
+    options.minute = '2-digit';
+    options.second = '2-digit';
+    options.hour12 = false;
+  }
+
+  return new Intl.DateTimeFormat('ru-RU', options).format(date);
+}
+
 export enum ProfileStatus {
   New = 'Новый',
   Active = 'Активный',
