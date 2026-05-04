@@ -134,7 +134,7 @@ function scheduleGoogleSheetExport() {
         isSyncing = false;
       }
     },
-    { timezone: 'Asia/Vladivostok' },
+    { timezone: 'Asia/Vladivostok', runOnInit: true },
   );
 }
 
@@ -229,17 +229,12 @@ function scheduleProfileSync() {
       for (const parkId of yandexParkIds) {
         await profileService.syncProfileStages(parkId);
       }
-    } else if (mode === 'temp') {
-      for (const parkId of yandexParkIds) {
-        await profileService.syncCreatedDates(parkId);
-      }
     }
   };
 
   cron.schedule('*/5 * * * *', () => enqueue('new', () => runSync('new')));
   cron.schedule('0 */2 * * *', () => enqueue('stages', () => runSync('stages')));
   cron.schedule('0 */2 * * *', () => enqueue('existing', () => runSync('existing')));
-  cron.schedule('0 */2 * * *', () => enqueue('temp', () => runSync('temp')), { runOnInit: true });
 }
 
 function scheduleOrdersSync() {

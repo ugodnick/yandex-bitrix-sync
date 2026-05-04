@@ -116,61 +116,6 @@ export class YandexFleetProfileService {
     }
   }
 
-  async syncCreatedDates(yandexParkId: string) {
-    console.log(`[YandexFleetProfileService] Запуск синхронизации дат профилей: ${yandexParkId}`);
-    try {
-      const twoYearsAgo = new Date();
-      twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
-
-      let offset = 0;
-      const limit = 200;
-      let total = 1;
-
-      while (offset < total) {
-        const response = await this.yandexService.getProfiles(
-          yandexParkId,
-          limit,
-          offset,
-          twoYearsAgo,
-        );
-
-        total = response.total;
-        const drivers = response.driver_profiles || [];
-
-        if (drivers.length === 0) break;
-
-        console.log(
-          `[YandexFleetProfileService] Обработка пачки: ${offset + 1} - ${offset + drivers.length} из ${total}...`,
-        );
-
-        for (const driver of drivers) {
-          try {
-            const profile = await this.yandexFleetProfileRepository.findOne({
-              where: { yandexProfileId: driver.driver_profile.id },
-            });
-            if (!profile) continue;
-            profile.fleetCreatedAt = new Date(driver.driver_profile.created_date);
-
-            await this.yandexFleetProfileRepository.save(profile);
-          } catch (error) {
-            console.error(
-              `[YandexFleetProfileService] Ошибка обработки водителя ${driver.driver_profile.id}:`,
-              error,
-            );
-          }
-        }
-
-        offset += limit;
-      }
-
-      console.log(
-        `[YandexFleetProfileService] Синхронизация дат профилей ${yandexParkId} завершена.`,
-      );
-    } catch (error) {
-      console.error(`[YandexFleetProfileService] Ошибка синхронизации дат ${yandexParkId}:`, error);
-    }
-  }
-
   async syncProfileStages(yandexParkId: string): Promise<void> {
     console.log(`[YandexFleetProfileService] Запуск синхронизации стадий: ${yandexParkId}`);
 

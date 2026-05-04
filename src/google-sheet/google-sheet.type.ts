@@ -9,7 +9,7 @@ export enum ContractorsColumn {
   Id = 'ID',
   FullName = 'ФИО',
   Phone = 'Телефон',
-  DateCreated = 'Дата создания профиля',
+  DateCreated = 'Дата создания профиля (UTC+10)',
   DateHired = 'Дата принятия',
   FirstOrderDate = 'Дата первого заказа',
   LastOrderDate = 'Дата последнего заказа',
