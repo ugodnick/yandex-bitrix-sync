@@ -1,6 +1,17 @@
 import { Column, CreateDateColumn, Entity, Index, PrimaryColumn, UpdateDateColumn } from 'typeorm';
 import { OrderStatus } from '../yandex-fleet.type';
 
+export const utcDateTimeTransformer = {
+  to: (value: Date | null | undefined) => {
+    if (!value) return value;
+    return value.toISOString();
+  },
+  from: (value: string | null) => {
+    if (!value) return value;
+    return new Date(value);
+  },
+};
+
 @Index(['profileId', 'bookedAt'])
 @Entity('yandex_fleet_order')
 export class YandexFleetOrderEntity {
@@ -21,10 +32,7 @@ export class YandexFleetOrderEntity {
   @Column({
     type: 'datetime',
     name: 'booked_at',
-    transformer: {
-      to: (value: Date | null) => value,
-      from: (value: string | null) => (value ? new Date(value) : null),
-    },
+    transformer: utcDateTimeTransformer,
   })
   bookedAt: Date;
 

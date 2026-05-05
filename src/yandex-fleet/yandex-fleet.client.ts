@@ -6,7 +6,7 @@ const ENDPOINT_LIMITS: { pattern: RegExp; minInterval: number }[] = [
   { pattern: /\/v2\/parks\/vehicles\/car/, minInterval: 500 },
   { pattern: /\/v2\/parks\/contractors\/driver-profile/, minInterval: 500 },
   { pattern: /\/v1\/parks\/driver-work-rules/, minInterval: 800 },
-  { pattern: /\/v2\/parks\/contractors\/supply-hours/, minInterval: 1000 },
+  { pattern: /\/v2\/parks\/contractors\/supply-hours/, minInterval: 5000 },
 ];
 const DEFAULT_INTERVAL = 800;
 

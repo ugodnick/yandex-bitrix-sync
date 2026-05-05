@@ -19,6 +19,7 @@ import { YandexFleetSheetExportService } from './yandex-fleet/yandex-fleet-profi
 import { join } from 'path';
 import { YandexFleetOrderEntity } from './yandex-fleet/yandex-fleet-order/yandex-fleet-order.entity';
 import { DataSource } from 'typeorm';
+import { Queue } from './queue';
 
 dotenv.config();
 
@@ -121,11 +122,6 @@ function scheduleGoogleSheetExport() {
       }
       isSyncing = true;
       try {
-        const yandexFleetOrderService = container.get(YandexFleetOrderService);
-        for (const parkId of yandexParkIds) {
-          await yandexFleetOrderService.syncParkOrders(parkId);
-        }
-
         const exportService = container.get(YandexFleetSheetExportService);
         await exportService.exportToGoogleSheets();
       } catch (error) {
@@ -134,83 +130,31 @@ function scheduleGoogleSheetExport() {
         isSyncing = false;
       }
     },
-    { timezone: 'Asia/Vladivostok', runOnInit: true },
-  );
-}
-
-function scheduleSupplyMonthGoogleSheetExport() {
-  let isSyncing = false;
-
-  cron.schedule(
-    '0 6 5 * *',
-    async () => {
-      if (isSyncing) {
-        console.log('[scheduleSupplyMonthGoogleSheetExport] Синхронизация активна, ждём...');
-        return;
-      }
-      isSyncing = true;
-      try {
-        const exportService = container.get(YandexFleetSheetExportService);
-        await exportService.exportSupplyHoursMonth();
-      } catch (error) {
-        console.error('[scheduleSupplyMonthGoogleSheetExport] Ошибка экспорта:', error);
-      } finally {
-        isSyncing = false;
-      }
-    },
     { timezone: 'Asia/Vladivostok' },
   );
 }
 
-function scheduleSupplyWeeklyGoogleSheetExport() {
-  let isSyncing = false;
+function scheduleSupplyHoursSync() {
+  const queue = new Queue('scheduleSupplyHoursSync');
+  const runSync = async (mode: string) => {
+    const exportService = container.get(YandexFleetSheetExportService);
 
-  cron.schedule(
-    '0 8 * * 2',
-    async () => {
-      if (isSyncing) {
-        console.log('[scheduleSupplyWeeklyGoogleSheetExport] Синхронизация активна, ждём...');
-        return;
-      }
-      isSyncing = true;
-      try {
-        const exportService = container.get(YandexFleetSheetExportService);
-        await exportService.exportSupplyWeekly();
-      } catch (error) {
-        console.error('[scheduleSupplyWeeklyGoogleSheetExport] Ошибка экспорта:', error);
-      } finally {
-        isSyncing = false;
-      }
-    },
-    { timezone: 'Asia/Vladivostok' },
-  );
+    if (mode === 'month') {
+      await exportService.exportSupplyHoursMonth();
+    } else if (mode === 'week') {
+      await exportService.exportSupplyWeekly();
+    }
+  };
+  cron.schedule('0 0 5 * *', () => queue.enqueue('month', () => runSync('month')), {
+    timezone: 'Asia/Vladivostok',
+  });
+  cron.schedule('0 8 * * 2', () => queue.enqueue('week', () => runSync('week')), {
+    timezone: 'Asia/Vladivostok',
+  });
 }
 
 function scheduleProfileSync() {
-  const pending = new Set<string>();
-  let syncQueue: Promise<void> = Promise.resolve();
-
-  function enqueue(name: string, task: () => Promise<void>): void {
-    if (pending.has(name)) {
-      console.log(`[scheduleProfileSync] Пропуск ${name}: уже в очереди.`);
-      return;
-    }
-
-    pending.add(name);
-
-    syncQueue = syncQueue
-      .then(async () => {
-        pending.delete(name);
-        console.log(`[scheduleProfileSync] Старт: ${name}`);
-        try {
-          await task();
-          console.log(`[scheduleProfileSync] Завершён: ${name}`);
-        } catch (error) {
-          console.error(`[scheduleProfileSync] Ошибка в ${name}:`, error);
-        }
-      })
-      .catch(() => {});
-  }
+  const queue = new Queue('scheduleProfileSync');
   const runSync = async (mode: string) => {
     const profileService = container.get(YandexFleetProfileService);
     const workRulesService = container.get(YandexFleetWorkRuleService);
@@ -232,9 +176,9 @@ function scheduleProfileSync() {
     }
   };
 
-  cron.schedule('*/5 * * * *', () => enqueue('new', () => runSync('new')));
-  cron.schedule('0 */2 * * *', () => enqueue('stages', () => runSync('stages')));
-  cron.schedule('0 */2 * * *', () => enqueue('existing', () => runSync('existing')));
+  cron.schedule('*/5 * * * *', () => queue.enqueue('new', () => runSync('new')));
+  cron.schedule('0 */2 * * *', () => queue.enqueue('stages', () => runSync('stages')));
+  cron.schedule('0 */2 * * *', () => queue.enqueue('existing', () => runSync('existing')));
 }
 
 function scheduleOrdersSync() {
@@ -293,8 +237,7 @@ async function bootstrap() {
   scheduleOrdersSync();
   scheduleGoogleSheetExport();
   scheduleProfileSync();
-  scheduleSupplyMonthGoogleSheetExport();
-  scheduleSupplyWeeklyGoogleSheetExport();
+  scheduleSupplyHoursSync();
 }
 
 bootstrap().catch(console.error);

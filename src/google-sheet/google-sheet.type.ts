@@ -30,12 +30,12 @@ export enum OrdersColumn {
 
 export enum SupplyHoursMonthColumn {
   ContractorId = 'ID исполнителя',
-  SupplyHours = 'Время на линии',
+  SupplyHours = 'Время на линии (ч)',
 }
 
 export enum SupplyWeekMonthColumn {
   ContractorId = 'ID исполнителя',
-  SupplyHours = 'Время на линии',
+  SupplyHours = 'Время на линии (ч)',
 }
 
 export type SheetColumnsMap = {

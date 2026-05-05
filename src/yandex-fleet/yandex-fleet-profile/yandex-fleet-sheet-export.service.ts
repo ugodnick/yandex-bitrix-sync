@@ -142,16 +142,13 @@ export class YandexFleetSheetExportService {
     periodFrom: Date,
     periodTo: Date,
   ): Promise<void> {
-    const fortyFiveDaysAgo = new Date();
-    fortyFiveDaysAgo.setDate(fortyFiveDaysAgo.getDate() - 45);
-
     const BATCH_SIZE = 200;
     let offset = 0;
     const allRows: (string | number)[][] = [];
 
     while (true) {
       const profiles = await this.yandexFleetProfileRepository.find({
-        where: { lastOrderDate: MoreThan(fortyFiveDaysAgo) },
+        where: { lastOrderDate: MoreThan(periodFrom) },
         order: { yandexProfileId: 'ASC' },
         take: BATCH_SIZE,
         skip: offset,
