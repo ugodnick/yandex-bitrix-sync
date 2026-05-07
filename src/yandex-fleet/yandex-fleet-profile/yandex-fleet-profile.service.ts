@@ -117,6 +117,61 @@ export class YandexFleetProfileService {
     }
   }
 
+  async fixOrderDates(): Promise<void> {
+    console.log('[YandexFleetProfileService] Запуск фикса дат заказов');
+
+    const BATCH_SIZE = 200;
+    let offset = 0;
+    let updated = 0;
+
+    try {
+      while (true) {
+        const profiles = await this.yandexFleetProfileRepository.find({
+          order: { yandexProfileId: 'ASC' },
+          take: BATCH_SIZE,
+          skip: offset,
+        });
+
+        if (profiles.length === 0) break;
+
+        for (const profile of profiles) {
+          try {
+            if (!profile.lastOrderDate) continue;
+
+            const lastOrder = await this.yandexFleetOrderRepository.findOne({
+              where: { profileId: profile.yandexProfileId, parkId: profile.parkId },
+              order: { bookedAt: 'DESC' },
+            });
+
+            const firstOrder = await this.yandexFleetOrderRepository.findOne({
+              where: { profileId: profile.yandexProfileId, parkId: profile.parkId },
+              order: { bookedAt: 'ASC' },
+            });
+
+            if (!lastOrder || !firstOrder) continue;
+
+            profile.lastOrderDate = lastOrder.bookedAt;
+            profile.firstOrderDate = firstOrder.bookedAt;
+            await this.yandexFleetProfileRepository.save(profile);
+
+            updated++;
+          } catch (error) {
+            console.error(
+              `[YandexFleetProfileService] Ошибка фикса для ${profile.yandexProfileId}:`,
+              error,
+            );
+          }
+        }
+
+        offset += BATCH_SIZE;
+      }
+
+      console.log(`[YandexFleetProfileService] Фикс дат завершён. Обновлено: ${updated}.`);
+    } catch (error) {
+      console.error('[YandexFleetProfileService] Ошибка фикса дат:', error);
+    }
+  }
+
   async syncProfileStages(yandexParkId: string): Promise<void> {
     console.log(`[YandexFleetProfileService] Запуск синхронизации стадий: ${yandexParkId}`);
 

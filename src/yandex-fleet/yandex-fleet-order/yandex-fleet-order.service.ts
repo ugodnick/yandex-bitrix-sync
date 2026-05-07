@@ -50,11 +50,13 @@ export class YandexFleetOrderService {
     const threeDaysAgo = new Date();
     threeDaysAgo.setDate(threeDaysAgo.getDate() - 2);
 
+    const startDate = new Date('2025-01-01T00:00:00Z'); // temp
+
     let cursor: string | undefined = undefined;
     let totalSaved = 0;
 
     do {
-      const page = await this.yandexFleetService.getOrdersPage(parkId, threeDaysAgo, now, cursor);
+      const page = await this.yandexFleetService.getOrdersPage(parkId, startDate, now, cursor);
 
       if (page.orders.length > 0) {
         const entities = page.orders.map((o) => this.mapOrderToEntity(o, parkId));

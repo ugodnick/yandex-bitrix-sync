@@ -95,7 +95,6 @@ client.interceptors.response.use(
         `[YandexClient] 429 на ${config.url} (парк ${config.headers?.['X-Park-ID']}), retry ${config._retryCount}, глобальная пауза ${pauseMs}ms`,
       );
 
-      // Сам ретрай пройдёт через rateLimit и подождёт паузу
       return client.request(config);
     }
     throw error;

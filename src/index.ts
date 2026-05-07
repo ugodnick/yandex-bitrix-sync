@@ -197,13 +197,16 @@ function scheduleOrdersSync() {
         for (const parkId of yandexParkIds) {
           await yandexFleetOrderService.syncParkOrders(parkId);
         }
+
+        const yandexFleetProfileService = container.get(YandexFleetProfileService); // temp fix
+        await yandexFleetProfileService.fixOrderDates();
       } catch (error) {
         console.error('[scheduleOrdersSync] Ошибка экспорта:', error);
       } finally {
         isSyncing = false;
       }
     },
-    { timezone: 'Asia/Vladivostok' },
+    { timezone: 'Asia/Vladivostok', runOnInit: true },
   );
 }
 
