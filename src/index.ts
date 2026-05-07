@@ -114,7 +114,7 @@ function scheduleGoogleSheetExport() {
   let isSyncing = false;
 
   cron.schedule(
-    '55 10 * * *',
+    '0 */1 * * *',
     async () => {
       if (isSyncing) {
         console.log('[scheduleGoogleSheetExport] Синхронизация активна, ждём...');
@@ -197,16 +197,13 @@ function scheduleOrdersSync() {
         for (const parkId of yandexParkIds) {
           await yandexFleetOrderService.syncParkOrders(parkId);
         }
-
-        const yandexFleetProfileService = container.get(YandexFleetProfileService); // temp fix
-        await yandexFleetProfileService.fixOrderDates();
       } catch (error) {
         console.error('[scheduleOrdersSync] Ошибка экспорта:', error);
       } finally {
         isSyncing = false;
       }
     },
-    { timezone: 'Asia/Vladivostok', runOnInit: true },
+    { timezone: 'Asia/Vladivostok' },
   );
 }
 
