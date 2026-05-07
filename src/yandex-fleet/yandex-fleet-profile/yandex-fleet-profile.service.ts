@@ -12,6 +12,7 @@ import {
 } from '../../bitrix/bitrix.type';
 import {
   DriverWorkStatus,
+  OrderStatus,
   VehicleAmenities,
   YandexFleetDriverProfile,
   YandexFleetDriverProfileItem,
@@ -149,7 +150,11 @@ export class YandexFleetProfileService {
         for (const profile of profiles) {
           try {
             const lastOrders = await this.yandexFleetOrderRepository.find({
-              where: { profileId: profile.yandexProfileId, parkId: yandexParkId },
+              where: {
+                profileId: profile.yandexProfileId,
+                parkId: yandexParkId,
+                status: OrderStatus.Complete,
+              },
               order: { bookedAt: 'DESC' },
               take: 30,
             });
@@ -487,7 +492,7 @@ export class YandexFleetProfileService {
     }
 
     const lastOrders = await this.yandexFleetOrderRepository.find({
-      where: { profileId, parkId },
+      where: { profileId, parkId, status: OrderStatus.Complete },
       order: { bookedAt: 'DESC' },
       take: 30,
     });
@@ -516,7 +521,7 @@ export class YandexFleetProfileService {
 
     if (!firstOrderDate && (!localState || localState.bitrixStageId !== category.Archive)) {
       const oldestLocalOrder = await this.yandexFleetOrderRepository.findOne({
-        where: { profileId, parkId },
+        where: { profileId, parkId, status: OrderStatus.Complete },
         order: { bookedAt: 'ASC' },
       });
 

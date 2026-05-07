@@ -160,39 +160,6 @@ export class YandexFleetService {
     }
   }
 
-  async getLastDriverOrders(
-    parkId: string,
-    driverProfileId: string,
-    from: Date,
-    limit: number = 26,
-    offset: number = 0,
-  ): Promise<YandexFleetOrder[]> {
-    try {
-      const response = await this.client.post<YandexOrdersResponse>(
-        '/v1/parks/orders/list',
-        {
-          query: {
-            park: {
-              id: parkId,
-              order: {
-                booked_at: { from: from.toISOString(), to: new Date().toISOString() },
-                statuses: [OrderStatus.Complete],
-              },
-              driver_profile: { id: driverProfileId },
-            },
-          },
-          limit,
-          offset,
-        },
-        { headers: this.getParkHeaders(parkId) },
-      );
-
-      return response.data.orders;
-    } catch (error: unknown) {
-      this.handleError(error);
-    }
-  }
-
   async getFirstOrderDate(
     parkId: string,
     driverProfileId: string,
