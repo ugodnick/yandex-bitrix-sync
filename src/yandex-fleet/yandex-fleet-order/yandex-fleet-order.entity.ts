@@ -1,5 +1,15 @@
-import { Column, CreateDateColumn, Entity, Index, PrimaryColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  PrimaryColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 import { OrderStatus } from '../yandex-fleet.type';
+import { YandexFleetProfileEntity } from '../yandex-fleet-profile/yandex-fleet-profile.entity';
 
 export const utcDateTimeTransformer = {
   to: (value: Date | null | undefined) => {
@@ -38,6 +48,12 @@ export class YandexFleetOrderEntity {
 
   @Column({ type: 'varchar', name: 'price', default: 'Неизвестно' })
   price: string;
+
+  @ManyToOne(() => YandexFleetProfileEntity, (profile) => profile.orders, {
+    createForeignKeyConstraints: false,
+  })
+  @JoinColumn({ name: 'profile_id' })
+  profile: YandexFleetProfileEntity;
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;

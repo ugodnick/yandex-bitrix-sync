@@ -67,16 +67,15 @@ export class YandexFleetSheetExportService {
     const BATCH_SIZE = 500;
     let offset = 0;
     const allRows: string[][] = [];
-    const oneMonthAndWeekAgo = new Date();
-    oneMonthAndWeekAgo.setMonth(oneMonthAndWeekAgo.getMonth() - 1);
-    oneMonthAndWeekAgo.setDate(oneMonthAndWeekAgo.getDate() - 7);
+    const fourtyFiveDaysAgo = new Date();
+    fourtyFiveDaysAgo.setDate(fourtyFiveDaysAgo.getDate() - 45);
 
     while (true) {
       const orders = await this.yandexFleetOrderRepository.find({
         take: BATCH_SIZE,
         skip: offset,
         order: { bookedAt: 'DESC' },
-        where: { bookedAt: MoreThan(oneMonthAndWeekAgo) },
+        where: { bookedAt: MoreThan(fourtyFiveDaysAgo) },
       });
       if (orders.length === 0) break;
 
@@ -99,8 +98,8 @@ export class YandexFleetSheetExportService {
       p.phone ? p.phone.replace(/^\+/, '') : '',
       p.fleetCreatedAt ? formatDateInTz(p.fleetCreatedAt) : '',
       p.hiredAt ? formatDate(p.hiredAt) : '',
-      p.firstOrderDate ? formatDate(p.firstOrderDate) : '',
-      p.lastOrderDate ? formatDate(p.lastOrderDate) : '',
+      p.firstOrderDate ? formatDateInTz(p.firstOrderDate) : '',
+      p.lastOrderDate ? formatDateInTz(p.lastOrderDate) : '',
       p.employmentType ?? '',
       ruleName,
       p.vehicleType ?? '',
@@ -111,7 +110,7 @@ export class YandexFleetSheetExportService {
   }
 
   private orderToRow(o: YandexFleetOrderEntity): string[] {
-    return [o.profileId, o.bookedAt.toLocaleString('ru-RU'), mapOrderStatusName(o.status), o.price];
+    return [o.profileId, formatDateInTz(o.bookedAt), mapOrderStatusName(o.status), o.price];
   }
 
   async exportSupplyHoursMonth(): Promise<void> {

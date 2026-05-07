@@ -1,4 +1,5 @@
-import { Entity, PrimaryColumn, Column, UpdateDateColumn, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryColumn, Column, UpdateDateColumn, CreateDateColumn, OneToMany } from 'typeorm';
+import { YandexFleetOrderEntity } from '../yandex-fleet-order/yandex-fleet-order.entity';
 
 export const utcDateTimeTransformer = {
   to: (value: Date | null | undefined) => {
@@ -73,11 +74,24 @@ export class YandexFleetProfileEntity {
   @Column({ type: 'varchar', name: 'vehicle_type', nullable: true })
   vehicleType: string | null;
 
-  @Column({ type: 'date', name: 'first_order_date', nullable: true, transformer: dateTransformer })
+  @Column({
+    type: 'datetime',
+    name: 'first_order_date',
+    nullable: true,
+    transformer: utcDateTimeTransformer,
+  })
   firstOrderDate: Date | null;
 
-  @Column({ type: 'date', name: 'last_order_date', nullable: true, transformer: dateTransformer })
+  @Column({
+    type: 'datetime',
+    name: 'last_order_date',
+    nullable: true,
+    transformer: utcDateTimeTransformer,
+  })
   lastOrderDate: Date | null;
+
+  @OneToMany(() => YandexFleetOrderEntity, (order) => order.profile)
+  orders: YandexFleetOrderEntity[];
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
