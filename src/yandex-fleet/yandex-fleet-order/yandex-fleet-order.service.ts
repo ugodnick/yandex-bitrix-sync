@@ -56,11 +56,15 @@ export class YandexFleetOrderService {
     let totalSaved = 0;
 
     do {
+      console.log(`[YandexFleetOrderService] Парк ${parkId}: поиск заказов`);
       const page = await this.yandexFleetService.getOrdersPage(parkId, startDate, now, cursor);
 
       if (page.orders.length > 0) {
         const entities = page.orders.map((o) => this.mapOrderToEntity(o, parkId));
         await this.yandexFleetOrderRepository.save(entities);
+        console.log(
+          `[YandexFleetOrderService] Парк ${parkId}: сохранено ${entities.length} заказов за раз`,
+        );
         totalSaved += entities.length;
       }
 
