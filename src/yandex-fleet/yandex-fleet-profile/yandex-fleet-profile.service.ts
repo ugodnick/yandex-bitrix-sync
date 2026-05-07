@@ -1,4 +1,4 @@
-import { In, IsNull, LessThanOrEqual, Not, Repository } from 'typeorm';
+import { In, Not, Repository } from 'typeorm';
 import { YandexFleetService } from '../yandex-fleet.service';
 import { BitrixService } from '../../bitrix/bitrix.service';
 import { YandexFleetProfileEntity } from './yandex-fleet-profile.entity';
@@ -119,9 +119,6 @@ export class YandexFleetProfileService {
   async syncProfileStages(yandexParkId: string): Promise<void> {
     console.log(`[YandexFleetProfileService] Запуск синхронизации стадий: ${yandexParkId}`);
 
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
     const category = getBitrixCategory(yandexParkId);
     const stagesToSkip: string[] = [
       category.Duplicates,
@@ -129,7 +126,6 @@ export class YandexFleetProfileService {
       category.SpamAdvertisingIlliquid,
       category.Pause,
       category.Archive,
-      category.Cold,
     ];
 
     const BATCH_SIZE = 200;
@@ -139,26 +135,10 @@ export class YandexFleetProfileService {
     try {
       while (true) {
         const profiles = await this.yandexFleetProfileRepository.find({
-          where: [
-            {
-              parkId: yandexParkId,
-              bitrixStageId: Not(In(stagesToSkip)),
-              lastOrderDate: LessThanOrEqual(thirtyDaysAgo),
-            },
-            {
-              parkId: yandexParkId,
-              bitrixStageId: Not(In(stagesToSkip)),
-              lastOrderDate: IsNull(),
-              hiredAt: LessThanOrEqual(thirtyDaysAgo),
-            },
-            {
-              parkId: yandexParkId,
-              bitrixStageId: Not(In(stagesToSkip)),
-              lastOrderDate: IsNull(),
-              hiredAt: IsNull(),
-              fleetCreatedAt: LessThanOrEqual(thirtyDaysAgo),
-            },
-          ],
+          where: {
+            parkId: yandexParkId,
+            bitrixStageId: Not(In(stagesToSkip)),
+          },
           order: { yandexProfileId: 'ASC' },
           take: BATCH_SIZE,
           skip: offset,
@@ -178,6 +158,14 @@ export class YandexFleetProfileService {
               lastOrders,
               profile.hiredAt ?? profile.fleetCreatedAt,
             );
+
+            if (
+              lastOrders.length > 0 &&
+              profile.lastOrderDate?.getTime() !== lastOrders[0].bookedAt.getTime()
+            ) {
+              profile.lastOrderDate = lastOrders[0].bookedAt;
+              await this.yandexFleetProfileRepository.save(profile);
+            }
 
             if (!nextStage || nextStage === profile.bitrixStageId) continue;
 

@@ -177,7 +177,7 @@ function scheduleProfileSync() {
   };
 
   cron.schedule('*/5 * * * *', () => queue.enqueue('new', () => runSync('new')));
-  cron.schedule('0 */2 * * *', () => queue.enqueue('stages', () => runSync('stages')));
+  cron.schedule('0 */1 * * *', () => queue.enqueue('stages', () => runSync('stages')));
   cron.schedule('0 */2 * * *', () => queue.enqueue('existing', () => runSync('existing')));
 }
 
