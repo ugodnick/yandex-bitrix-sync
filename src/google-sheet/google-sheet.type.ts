@@ -11,8 +11,8 @@ export enum ContractorsColumn {
   Phone = 'Телефон',
   DateCreated = 'Дата создания профиля (UTC+10)',
   DateHired = 'Дата принятия',
-  FirstOrderDate = 'Дата первого заказа',
-  LastOrderDate = 'Дата последнего заказа',
+  FirstOrderDate = 'Дата первого заказа (UTC+10)',
+  LastOrderDate = 'Дата последнего заказа (UTC+10)',
   VacancyType = 'Тип устройства',
   WorkConditions = 'Условия работы',
   MovementType = 'Тип передвижения',
@@ -23,7 +23,7 @@ export enum ContractorsColumn {
 
 export enum OrdersColumn {
   ContractorId = 'ID исполнителя',
-  OrderDate = 'Дата заказа',
+  OrderDate = 'Дата заказа (UTC+10)',
   Status = 'Статус',
   Price = 'Стоимость заказа',
 }

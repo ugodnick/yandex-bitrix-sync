@@ -215,7 +215,7 @@ export class GoogleSheetsAPIService {
                 sheetId,
                 dimension: 'ROWS',
                 startIndex: keepHeaderRows,
-                endIndex: rowCount,
+                endIndex: rowCount - 1,
               },
             },
           },
