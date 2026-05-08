@@ -7,7 +7,7 @@ import { loadConfig } from './app.config';
 import { Container } from './container';
 import { YandexFleetService } from './yandex-fleet/yandex-fleet.service';
 import { BitrixService } from './bitrix/bitrix.service';
-import { BitrixCrmWebhookBody, YANDEX_PARKS_NAMES } from './bitrix/bitrix.type';
+import { BitrixCrmWebhookBody } from './bitrix/bitrix.type';
 import { YandexFleetProfileEntity } from './yandex-fleet/yandex-fleet-profile/yandex-fleet-profile.entity';
 import { YandexFleetProfileService } from './yandex-fleet/yandex-fleet-profile/yandex-fleet-profile.service';
 import { YandexFleetWorkRuleEntity } from './yandex-fleet/yandex-fleet-work-rule/yandex-fleet-work-rule.entity';
@@ -18,8 +18,9 @@ import { GoogleSheetsAPIService } from './google-sheet/google-sheet.service';
 import { YandexFleetSheetExportService } from './yandex-fleet/yandex-fleet-profile/yandex-fleet-sheet-export.service';
 import { join } from 'path';
 import { YandexFleetOrderEntity } from './yandex-fleet/yandex-fleet-order/yandex-fleet-order.entity';
-import { DataSource } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Queue } from './queue';
+import { YandexFleetParkEntity } from './yandex-fleet/yandex-park.entity';
 
 dotenv.config();
 
@@ -28,7 +29,18 @@ const container = new Container();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const yandexParkIds = Object.keys(YANDEX_PARKS_NAMES);
+
+let yandexFleetParkRepository: Repository<YandexFleetParkEntity>;
+let cachedParks: { data: YandexFleetParkEntity[]; expires: number } | null = null;
+
+async function getActiveParks(): Promise<YandexFleetParkEntity[]> {
+  const now = Date.now();
+  if (cachedParks && cachedParks.expires > now) return cachedParks.data;
+
+  const parks = await yandexFleetParkRepository.find({ where: { isActive: true } });
+  cachedParks = { data: parks, expires: now + 5 * 60 * 1000 };
+  return parks;
+}
 
 async function initDatabase(): Promise<DataSource> {
   const database = await AppDataSource.initialize();
@@ -44,14 +56,16 @@ function initServices(database: DataSource): void {
   const yandexFleetProfileRepository = database.getRepository(YandexFleetProfileEntity);
   const yandexFleetWorkRulesRepository = database.getRepository(YandexFleetWorkRuleEntity);
   const yandexFleetOrderRepository = database.getRepository(YandexFleetOrderEntity);
+  yandexFleetParkRepository = database.getRepository(YandexFleetParkEntity);
 
-  container.add(YandexFleetService, () => new YandexFleetService(config.yandexApiKeys));
+  container.add(YandexFleetService, () => new YandexFleetService());
   container.add(BitrixService, () => new BitrixService(config.inboundWebhookUrl));
   container.add(
     BitrixWebhookService,
     () =>
       new BitrixWebhookService(
         yandexFleetProfileRepository,
+        yandexFleetParkRepository,
         container.get(YandexFleetService),
         container.get(BitrixService),
       ),
@@ -84,14 +98,7 @@ function initServices(database: DataSource): void {
         spreadsheetId: config.googleSheetsSheetId,
       }),
   );
-  container.add(
-    YandexFleetWorkRuleService,
-    () =>
-      new YandexFleetWorkRuleService(
-        yandexFleetWorkRulesRepository,
-        container.get(YandexFleetService),
-      ),
-  );
+
   container.add(
     YandexFleetOrderService,
     () =>
@@ -104,6 +111,7 @@ function initServices(database: DataSource): void {
         yandexFleetProfileRepository,
         yandexFleetWorkRulesRepository,
         yandexFleetOrderRepository,
+        yandexFleetParkRepository,
         container.get(GoogleSheetsAPIService),
         container.get(YandexFleetService),
       ),
@@ -111,25 +119,15 @@ function initServices(database: DataSource): void {
 }
 
 function scheduleGoogleSheetExport() {
-  let isSyncing = false;
+  const queue = new Queue('scheduleGoogleSheetExport');
 
   cron.schedule(
     '0 */1 * * *',
-    async () => {
-      if (isSyncing) {
-        console.log('[scheduleGoogleSheetExport] Синхронизация активна, ждём...');
-        return;
-      }
-      isSyncing = true;
-      try {
+    () =>
+      queue.enqueue('export', async () => {
         const exportService = container.get(YandexFleetSheetExportService);
         await exportService.exportToGoogleSheets();
-      } catch (error) {
-        console.error('[scheduleGoogleSheetExport] Ошибка экспорта:', error);
-      } finally {
-        isSyncing = false;
-      }
-    },
+      }),
     { timezone: 'Asia/Vladivostok' },
   );
 }
@@ -153,25 +151,26 @@ function scheduleSupplyHoursSync() {
   });
 }
 
-function scheduleProfileSync() {
-  const queue = new Queue('scheduleProfileSync');
+function scheduleParksProfilesSync() {
+  const queue = new Queue('scheduleParksProfilesSync');
   const runSync = async (mode: string) => {
     const profileService = container.get(YandexFleetProfileService);
     const workRulesService = container.get(YandexFleetWorkRuleService);
+    const parks = await getActiveParks();
 
     if (mode === 'new') {
-      for (const parkId of yandexParkIds) {
-        await workRulesService.syncParkWorkRules(parkId);
-        await profileService.syncProfiles(parkId, true);
+      for (const park of parks) {
+        await workRulesService.syncParkWorkRules(park);
+        await profileService.syncProfiles(park, true);
       }
     } else if (mode === 'existing') {
-      for (const parkId of yandexParkIds) {
-        await workRulesService.syncParkWorkRules(parkId);
-        await profileService.syncProfiles(parkId, false);
+      for (const park of parks) {
+        await workRulesService.syncParkWorkRules(park);
+        await profileService.syncProfiles(park, false);
       }
     } else if (mode === 'stages') {
-      for (const parkId of yandexParkIds) {
-        await profileService.syncProfileStages(parkId);
+      for (const park of parks) {
+        await profileService.syncProfileStages(park);
       }
     }
   };
@@ -181,28 +180,19 @@ function scheduleProfileSync() {
   cron.schedule('0 */2 * * *', () => queue.enqueue('existing', () => runSync('existing')));
 }
 
-function scheduleOrdersSync() {
-  let isSyncing = false;
+function scheduleParksOrdersSync() {
+  const queue = new Queue('scheduleParksOrdersSync');
 
   cron.schedule(
     '0 */1 * * *',
-    async () => {
-      if (isSyncing) {
-        console.log('[scheduleOrdersSync] Синхронизация активна, ждём...');
-        return;
-      }
-      isSyncing = true;
-      try {
+    () =>
+      queue.enqueue('orders', async () => {
         const yandexFleetOrderService = container.get(YandexFleetOrderService);
-        for (const parkId of yandexParkIds) {
-          await yandexFleetOrderService.syncParkOrders(parkId);
+        const parks = await getActiveParks();
+        for (const park of parks) {
+          await yandexFleetOrderService.syncParkOrders(park);
         }
-      } catch (error) {
-        console.error('[scheduleOrdersSync] Ошибка экспорта:', error);
-      } finally {
-        isSyncing = false;
-      }
-    },
+      }),
     { timezone: 'Asia/Vladivostok' },
   );
 }
@@ -234,9 +224,9 @@ async function bootstrap() {
     console.log(`Server is running on port ${PORT}`);
   });
 
-  scheduleOrdersSync();
+  scheduleParksOrdersSync();
+  scheduleParksProfilesSync();
   scheduleGoogleSheetExport();
-  scheduleProfileSync();
   scheduleSupplyHoursSync();
 }
 

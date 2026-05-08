@@ -1,9 +1,4 @@
-import {
-  BITRIX_CATEGORY_STAGE,
-  BITRIX_DICT,
-  BitrixDealCategory,
-  YANDEX_DELIVERY_PARKS,
-} from '../bitrix/bitrix.type';
+import { BITRIX_DICT, BitrixDealCategory } from '../bitrix/bitrix.type';
 import {
   CountryCode,
   EmploymentType,
@@ -15,6 +10,8 @@ import {
   YandexFleetVehicleData,
 } from './yandex-fleet.type';
 import crypto from 'crypto';
+import { YandexFleetParkType } from './yandex-park.entity';
+import { getBitrixCategory } from '../bitrix/bitrix.utils';
 
 export const mapYandexColorToBitrix = (color?: VehicleColor): number | undefined => {
   if (!color) return undefined;
@@ -130,19 +127,21 @@ export const mapContractorType = (
 };
 
 export const mapCategory = (
-  parkId: string,
+  parkType: YandexFleetParkType,
 ): (typeof BitrixDealCategory)[keyof typeof BitrixDealCategory] => {
-  return YANDEX_DELIVERY_PARKS.includes(parkId)
-    ? BitrixDealCategory.YANDEX_DELIVERY
-    : BitrixDealCategory.YANDEX_TAXI;
+  if (parkType === YandexFleetParkType.Delivery) return BitrixDealCategory.YANDEX_DELIVERY;
+  if (parkType === YandexFleetParkType.Taxi) return BitrixDealCategory.YANDEX_TAXI;
+
+  throw new Error('No such park type in constants');
 };
 
 export const mapAggregator = (
-  parkId: string,
+  parkType: YandexFleetParkType,
 ): (typeof BITRIX_DICT.AGGREGATOR)[keyof typeof BITRIX_DICT.AGGREGATOR] => {
-  return YANDEX_DELIVERY_PARKS.includes(parkId)
-    ? BITRIX_DICT.AGGREGATOR.YANDEX_DELIVERY
-    : BITRIX_DICT.AGGREGATOR.YANDEX;
+  if (parkType === YandexFleetParkType.Delivery) return BITRIX_DICT.AGGREGATOR.YANDEX_DELIVERY;
+  if (parkType === YandexFleetParkType.Taxi) return BITRIX_DICT.AGGREGATOR.YANDEX_TAXI;
+
+  throw new Error('No such park type in constants');
 };
 
 export const formatDateForBitrix = (dateStr?: string): string | undefined => {
@@ -245,34 +244,28 @@ export enum ProfileStatus {
   Unknown = 'Неизвестно',
 }
 
-export function stageToStatus(stageId: string): ProfileStatus {
-  const stages = BITRIX_CATEGORY_STAGE[BitrixDealCategory.YANDEX_DELIVERY];
-
+export function stageToStatus(parkType: YandexFleetParkType, stageId: string): ProfileStatus {
+  const stages = getBitrixCategory(parkType);
   switch (stageId) {
     case stages.NotProcessed:
-    case stages.NewLead:
     case stages.TakenToWork:
-    case stages.Ndz:
+    case stages.CallBack:
+    case stages.NdzLead:
     case stages.Thinking:
     case stages.DocumentCollection:
     case stages.TransferToSmz:
     case stages.OutputFor1Order:
     case stages.NdzNotComeOut:
       return ProfileStatus.New;
-
     case stages.Orders25:
     case stages.Working:
       return ProfileStatus.Active;
-
     case stages.Outflow:
       return ProfileStatus.Outflow;
-
     case stages.Cold:
       return ProfileStatus.Cold;
-
     case stages.Pause:
       return ProfileStatus.Pause;
-
     case stages.Archive:
     case stages.Cps:
     case stages.Duplicates:
@@ -280,7 +273,6 @@ export function stageToStatus(stageId: string): ProfileStatus {
     case stages.SpamAdvertisingIlliquid:
     case stages.Refusal:
       return ProfileStatus.Archive;
-
     default:
       return ProfileStatus.Unknown;
   }

@@ -3,10 +3,17 @@ import { YandexFleetService } from '../yandex-fleet.service';
 import { BITRIX_CATEGORY_STAGE, BitrixDealCategory } from '../../bitrix/bitrix.type';
 import { YandexFleetOrder } from '../yandex-fleet.type';
 import { YandexFleetOrderEntity } from './yandex-fleet-order.entity';
+import { YandexFleetParkEntity } from '../yandex-park.entity';
+import {
+  YandexFleetSyncStateEntity,
+  YandexFleetSyncType,
+  YandexFleetSyncStatus,
+} from '../yandex-fleet-sync-state.entity';
 
 export class YandexFleetOrderService {
   constructor(
     private readonly yandexFleetOrderRepository: Repository<YandexFleetOrderEntity>,
+    private syncStateRepository: Repository<YandexFleetSyncStateEntity>,
     private readonly yandexFleetService: YandexFleetService,
   ) {}
 
@@ -44,29 +51,83 @@ export class YandexFleetOrderService {
     return null;
   }
 
-  async syncParkOrders(parkId: string): Promise<void> {
-    const now = new Date();
+  async syncParkOrders(park: YandexFleetParkEntity): Promise<void> {
+    const startedAt = new Date();
+    const bufferOverlap = 60 * 60 * 1000;
+    const fallback = new Date('2025-01-01T00:00:00Z');
 
-    const threeDaysAgo = new Date();
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 2);
+    let state = await this.syncStateRepository.findOne({
+      where: { parkId: park.id, syncType: YandexFleetSyncType.Orders },
+    });
 
-    let cursor: string | undefined = undefined;
-    let totalSaved = 0;
+    const from = state?.lastSyncedTo
+      ? new Date(state.lastSyncedTo.getTime() - bufferOverlap)
+      : fallback;
 
-    do {
-      const page = await this.yandexFleetService.getOrdersPage(parkId, threeDaysAgo, now, cursor);
+    state = await this.syncStateRepository.save({
+      ...(state ?? {}),
+      parkId: park.id,
+      syncType: YandexFleetSyncType.Orders,
+      status: YandexFleetSyncStatus.Running,
+      lastRunAt: startedAt,
+    });
 
-      if (page.orders.length > 0) {
-        const entities = page.orders.map((o) => this.mapOrderToEntity(o, parkId));
-        await this.yandexFleetOrderRepository.save(entities);
+    try {
+      let cursor: string | undefined = undefined;
+      let totalSaved = 0;
 
-        totalSaved += entities.length;
-      }
+      do {
+        const page = await this.yandexFleetService.getOrdersPage(park, from, startedAt, cursor);
 
-      cursor = page.cursor || undefined;
-    } while (cursor);
+        if (page.orders.length > 0) {
+          const entities = page.orders.map((o) => this.mapOrderToEntity(o, park.id));
 
-    console.log(`[YandexFleetOrderService] Парк ${parkId}: сохранено ${totalSaved} заказов`);
+          try {
+            await this.yandexFleetOrderRepository.save(entities);
+            totalSaved += entities.length;
+          } catch (error) {
+            console.warn(
+              `[YandexFleetOrderService] Батч упал для ${park.name}, переходим на поштучное сохранение`,
+            );
+            for (const entity of entities) {
+              try {
+                await this.yandexFleetOrderRepository.save(entity);
+                totalSaved++;
+              } catch (innerError) {
+                console.error(
+                  `[YandexFleetOrderService] Заказ ${entity.id} парка ${park.name}:`,
+                  innerError,
+                );
+              }
+            }
+          }
+        }
+
+        cursor = page.cursor || undefined;
+      } while (cursor);
+
+      await this.syncStateRepository.save({
+        ...state,
+        lastSyncedTo: startedAt,
+        status: YandexFleetSyncStatus.Idle,
+        lastError: null,
+        retryCount: 0,
+      });
+
+      console.log(`[YandexFleetOrderService] Парк ${park.name}: сохранено ${totalSaved} заказов`);
+    } catch (error) {
+      await this.syncStateRepository.save({
+        ...state,
+        status: YandexFleetSyncStatus.Failed,
+        lastError: error instanceof Error ? error.message : String(error),
+        retryCount: (state.retryCount ?? 0) + 1,
+      });
+
+      console.error(
+        `[YandexFleetOrderService] Ошибка синхронизации заказов парка ${park.name}:`,
+        error,
+      );
+    }
   }
 
   private mapOrderToEntity(order: YandexFleetOrder, parkId: string): YandexFleetOrderEntity {

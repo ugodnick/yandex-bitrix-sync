@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { OrderStatus } from '../yandex-fleet.type';
 import { YandexFleetProfileEntity } from '../yandex-fleet-profile/yandex-fleet-profile.entity';
+import { YandexFleetParkEntity } from '../yandex-park.entity';
 
 export const utcDateTimeTransformer = {
   to: (value: Date | null | undefined) => {
@@ -49,15 +50,17 @@ export class YandexFleetOrderEntity {
   @Column({ type: 'varchar', name: 'price', default: 'Неизвестно' })
   price: string;
 
-  @ManyToOne(() => YandexFleetProfileEntity, (profile) => profile.orders, {
-    createForeignKeyConstraints: false,
-  })
-  @JoinColumn({ name: 'profile_id' })
-  profile: YandexFleetProfileEntity;
-
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
   @CreateDateColumn({ name: 'create_at' })
   createAt: Date;
+
+  @ManyToOne(() => YandexFleetProfileEntity, (profile) => profile.orders)
+  @JoinColumn({ name: 'profile_id', referencedColumnName: 'yandexProfileId' })
+  profile: YandexFleetProfileEntity;
+
+  @ManyToOne(() => YandexFleetParkEntity, (park) => park.orders)
+  @JoinColumn({ name: 'park_id', referencedColumnName: 'yandexParkId' })
+  park: YandexFleetParkEntity;
 }

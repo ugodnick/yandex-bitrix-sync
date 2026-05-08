@@ -10,14 +10,15 @@ import {
 } from '../yandex-fleet.utils';
 import { YandexFleetWorkRuleEntity } from '../yandex-fleet-work-rule/yandex-fleet-work-rule.entity';
 import { YandexFleetOrderEntity } from '../yandex-fleet-order/yandex-fleet-order.entity';
-import { mapParkName } from '../../bitrix/bitrix.utils';
 import { YandexFleetService } from '../yandex-fleet.service';
+import { YandexFleetParkEntity } from '../yandex-park.entity';
 
 export class YandexFleetSheetExportService {
   constructor(
     private readonly yandexFleetProfileRepository: Repository<YandexFleetProfileEntity>,
     private readonly yandexFleetWorkRuleRepository: Repository<YandexFleetWorkRuleEntity>,
     private readonly yandexFleetOrderRepository: Repository<YandexFleetOrderEntity>,
+    private readonly yandexFleetParkRepository: Repository<YandexFleetParkEntity>,
     private readonly googleSheetsApiService: GoogleSheetsAPIService,
     private readonly yandexService: YandexFleetService,
   ) {}
@@ -26,7 +27,7 @@ export class YandexFleetSheetExportService {
     await this.exportContractors();
     await this.exportOrders();
 
-    const today = new Date().toLocaleDateString('ru-RU');
+    const today = formatDateInTz(new Date(), true);
     await this.googleSheetsApiService.renameSpreadsheet(`Выгрузка Диспетчерской — ${today}`);
   }
 
@@ -34,6 +35,8 @@ export class YandexFleetSheetExportService {
     const BATCH_SIZE = 500;
     let offset = 0;
     const allRows: string[][] = [];
+
+    const parks = await this.yandexFleetParkRepository.find();
 
     while (true) {
       const profiles = await this.yandexFleetProfileRepository.find({
@@ -52,7 +55,11 @@ export class YandexFleetSheetExportService {
           workRuleName = workRule.name;
         }
 
-        allRows.push(this.profileToRow(profile, workRuleName, mapParkName(profile.parkId)));
+        const park = parks.find((p) => p.id === profile.parkId);
+
+        if (!park) continue;
+
+        allRows.push(this.profileToRow(profile, workRuleName, park));
       }
 
       offset += BATCH_SIZE;
@@ -91,26 +98,30 @@ export class YandexFleetSheetExportService {
     await this.googleSheetsApiService.appendRawRows(SheetName.Orders, allRows);
   }
 
-  private profileToRow(p: YandexFleetProfileEntity, ruleName: string, parkName: string): string[] {
+  private profileToRow(
+    p: YandexFleetProfileEntity,
+    ruleName: string,
+    park: YandexFleetParkEntity,
+  ): string[] {
     return [
       p.yandexProfileId,
       [p.lastName, p.firstName, p.middleName].filter(Boolean).join(' '),
       p.phone ? p.phone.replace(/^\+/, '') : '',
-      p.fleetCreatedAt ? formatDateInTz(p.fleetCreatedAt) : '',
+      p.fleetCreatedAt ? formatDateInTz(p.fleetCreatedAt, true) : '',
       p.hiredAt ? formatDate(p.hiredAt) : '',
-      p.firstOrderDate ? formatDateInTz(p.firstOrderDate) : '',
-      p.lastOrderDate ? formatDateInTz(p.lastOrderDate) : '',
+      p.firstOrderDate ? formatDateInTz(p.firstOrderDate, true) : '',
+      p.lastOrderDate ? formatDateInTz(p.lastOrderDate, true) : '',
       p.employmentType ?? '',
       ruleName,
       p.vehicleType ?? '',
-      stageToStatus(p.bitrixStageId),
-      parkName,
+      stageToStatus(park.type, p.bitrixStageId),
+      park.name,
       'https://fleet.yandex.ru/contractors/' + p.yandexProfileId + '/details?park_id=' + p.parkId,
     ];
   }
 
   private orderToRow(o: YandexFleetOrderEntity): string[] {
-    return [o.profileId, formatDateInTz(o.bookedAt), mapOrderStatusName(o.status), o.price];
+    return [o.profileId, formatDateInTz(o.bookedAt, true), mapOrderStatusName(o.status), o.price];
   }
 
   async exportSupplyHoursMonth(): Promise<void> {
@@ -149,6 +160,7 @@ export class YandexFleetSheetExportService {
       const profiles = await this.yandexFleetProfileRepository.find({
         where: { lastOrderDate: MoreThan(periodFrom) },
         order: { yandexProfileId: 'ASC' },
+        relations: { park: true },
         take: BATCH_SIZE,
         skip: offset,
       });
@@ -158,7 +170,7 @@ export class YandexFleetSheetExportService {
       for (const profile of profiles) {
         try {
           const supplyHours = await this.yandexService.getDriverSupplyHours(
-            profile.parkId,
+            profile.park,
             profile.yandexProfileId,
             periodFrom,
             periodTo,

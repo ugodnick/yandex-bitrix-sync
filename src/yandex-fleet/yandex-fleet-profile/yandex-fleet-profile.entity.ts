@@ -1,5 +1,15 @@
-import { Entity, PrimaryColumn, Column, UpdateDateColumn, CreateDateColumn, OneToMany } from 'typeorm';
+import {
+  Entity,
+  PrimaryColumn,
+  Column,
+  UpdateDateColumn,
+  CreateDateColumn,
+  OneToMany,
+  JoinColumn,
+  ManyToOne,
+} from 'typeorm';
 import { YandexFleetOrderEntity } from '../yandex-fleet-order/yandex-fleet-order.entity';
+import { YandexFleetParkEntity } from '../yandex-park.entity';
 
 export const utcDateTimeTransformer = {
   to: (value: Date | null | undefined) => {
@@ -90,12 +100,16 @@ export class YandexFleetProfileEntity {
   })
   lastOrderDate: Date | null;
 
-  @OneToMany(() => YandexFleetOrderEntity, (order) => order.profile)
-  orders: YandexFleetOrderEntity[];
-
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
   @CreateDateColumn({ name: 'create_at' })
   createAt: Date;
+
+  @ManyToOne(() => YandexFleetParkEntity, (park) => park.profiles)
+  @JoinColumn({ name: 'park_id', referencedColumnName: 'yandexParkId' })
+  park: YandexFleetParkEntity;
+
+  @OneToMany(() => YandexFleetOrderEntity, (order) => order.profile)
+  orders: YandexFleetOrderEntity[];
 }

@@ -24,7 +24,6 @@ import {
 import {
   BITRIX_DICT,
   BITRIX_FIELDS,
-  BITRIX_TO_YANDEX_PARK,
   BitrixContactFields,
   BitrixCrmWebhookBody,
   BitrixDealCategory,
@@ -33,10 +32,12 @@ import {
 import { BitrixService } from './bitrix.service';
 import { Repository } from 'typeorm';
 import { YandexFleetProfileEntity } from '../yandex-fleet/yandex-fleet-profile/yandex-fleet-profile.entity';
+import { YandexFleetParkEntity } from '../yandex-fleet/yandex-park.entity';
 
 export class BitrixWebhookService {
   constructor(
     private yandexFleetProfileRepository: Repository<YandexFleetProfileEntity>,
+    private yandexFleetParkRepository: Repository<YandexFleetParkEntity>,
     private yandexFleetService: YandexFleetService,
     private bitrixService: BitrixService,
   ) {}
@@ -67,14 +68,14 @@ export class BitrixWebhookService {
     if (!contactId) return;
 
     const bitrixDispatcherField = deal[BITRIX_FIELDS.DISPATCHER];
-    const dispatcherId = bitrixDispatcherField
+    const bitrixDispatcherId = bitrixDispatcherField
       ? Array.isArray(bitrixDispatcherField) && bitrixDispatcherField.length > 0
         ? String(bitrixDispatcherField[0])
         : String(bitrixDispatcherField)
       : '';
 
-    const targetYandexParkId = BITRIX_TO_YANDEX_PARK[dispatcherId];
-    if (!targetYandexParkId) return;
+    const park = await this.yandexFleetParkRepository.findOne({ where: { bitrixDispatcherId } });
+    if (!park) return;
 
     const contactData = await this.bitrixService.getContact(String(contactId));
 
@@ -92,17 +93,14 @@ export class BitrixWebhookService {
     });
 
     if (localProfile && localProfile.dataHash !== calculateDriverHash(deal, contactData)) {
-      const category = getBitrixCategory(targetYandexParkId);
+      const category = getBitrixCategory(park.type);
       const stagesToSkip: readonly string[] = [category.Archive, category.Refusal];
 
       if (
         deal.STAGE_ID === localProfile.bitrixStageId &&
         !stagesToSkip.includes(localProfile.bitrixStageId)
       ) {
-        const currentProfile = await this.yandexFleetService.getProfile(
-          targetYandexParkId,
-          yandexProfileId,
-        );
+        const currentProfile = await this.yandexFleetService.getProfile(park, yandexProfileId);
 
         const updatedProfile = this.buildYandexProfileUpdatePayload(
           currentProfile,
@@ -111,36 +109,18 @@ export class BitrixWebhookService {
         );
 
         if (currentProfile.car_id) {
-          const car = await this.yandexFleetService.getCar(
-            targetYandexParkId,
-            currentProfile.car_id,
-          );
+          const car = await this.yandexFleetService.getCar(park, currentProfile.car_id);
           const updatedCar = this.buildYandexCarUpdatePayload(car, deal);
 
           if (updatedCar) {
-            await this.yandexFleetService.updateCar(
-              targetYandexParkId,
-              currentProfile.car_id,
-              updatedCar,
-            );
+            await this.yandexFleetService.updateCar(park, currentProfile.car_id, updatedCar);
           }
         }
 
-        await this.yandexFleetService.updateProfile(
-          targetYandexParkId,
-          yandexProfileId,
-          updatedProfile,
-        );
+        await this.yandexFleetService.updateProfile(park, yandexProfileId, updatedProfile);
       }
 
-      await this.saveLocalState(
-        yandexProfileId,
-        targetYandexParkId,
-        contactId,
-        dealId,
-        deal,
-        contactData,
-      );
+      await this.saveLocalState(yandexProfileId, park.id, contactId, dealId, deal, contactData);
     }
   }
 

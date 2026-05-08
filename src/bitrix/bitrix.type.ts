@@ -10,9 +10,9 @@ export enum BitrixDealCategory {
 export const BITRIX_CATEGORY_STAGE = {
   [BitrixDealCategory.YANDEX_DELIVERY]: {
     NotProcessed: 'C3:NEW',
-    NewLead: 'C3:UC_3Q3VT7',
     TakenToWork: 'C3:PREPARATION',
-    Ndz: 'C3:UC_L3KDM6',
+    CallBack: 'C3:UC_C44UC0',
+    NdzLead: 'C3:UC_8UHKSK',
     Thinking: 'C3:UC_LW45DH',
     DocumentCollection: 'C3:PREPAYMENT_INVOICE',
     TransferToSmz: 'C3:UC_2CL0T5',
@@ -33,17 +33,20 @@ export const BITRIX_CATEGORY_STAGE = {
   [BitrixDealCategory.YANDEX_TAXI]: {
     NotProcessed: 'C5:NEW',
     TakenToWork: 'C5:PREPARATION',
+    CallBack: 'C5:UC_1CV6CN',
+    NdzLead: 'C5:EXECUTING',
     Thinking: 'C5:PREPAYMENT_INVOICE',
-    NdzLid: 'C5:EXECUTING',
     DocumentCollection: 'C5:FINAL_INVOICE',
     TransferToSmz: 'C5:UC_XV3P8H',
-    Output: 'C5:UC_RREXQ0',
+    OutputFor1Order: 'C5:UC_RREXQ0',
     NdzNotComeOut: 'C5:UC_BB8B8W',
+    Orders25: 'C5:UC_LRRSRU',
     Working: 'C5:UC_QKD6SW',
     Outflow: 'C5:UC_OUUMS0',
     Pause: 'C5:UC_QF9VUT',
     Cold: 'C5:UC_QOQVBZ',
     Archive: 'C5:UC_O5OZKJ',
+    Cps: 'C5:UC_5QN2WO',
     Duplicates: 'C5:UC_S1PJEX',
     DoNotClick: 'C5:WON',
     SpamAdvertisingIlliquid: 'C5:LOSE',
@@ -64,6 +67,7 @@ export const BITRIX_DICT = {
     YANDEX_EDA: 59,
     YANDEX_MARKET: 61,
     YANDEX_DELIVERY: 55,
+    YANDEX_TAXI: 185,
   },
   VACANCY: {
     TAXI: 45,
@@ -227,64 +231,6 @@ export const BITRIX_FIELDS = {
   TAX_SYSTEM_TYPE: 'UF_CRM_1776749434',
   BIRTH_DATE: 'UF_CRM_1775210097',
 } as const;
-
-export const BITRIX_TO_YANDEX_PARK: Record<string, string> = {
-  '321': '', // ГЛОРИАН (Я.Такси Владивосток)
-  '323': '', // КАРАТ (Я.Такси Хабаровск)
-  '77': '', // КАРАВАН (Я.Такси Саратов)
-  '327': '', // ФАРТCAR (Я.Такси Саратов)
-  '85': '', // АЛЬФА (Я.Маркет Авто/Грузовое ЛюбойГород)
-  '95': '30ca63b508454371b9deb252b3306083', // ФИШТ (Я.Доставка Авто Владивосток)
-  '97': '89a42a3a9a964fff9c41fd076fd09c6c', // ЭВЕРЕСТ (Я.Доставка Пеший Владивосток)
-  '83': 'bf157cfe3a914fda817b1d2dde37ada1', // ДЖИМАРА (Я.Доставка Авто Хабаровск)
-  '91': '35c53a402f8b4f04a8806e68da798f20', // МИЖИРГИ (Я.Доставка Пеший Хабаровск)
-  '87': 'c1af957f21b844868adc314f0e24e985', // БЕЛУХА (Я.Доставка Пеший/Авто Уссурийск)
-  '335': '9ac02ba7e5174c10b401cfb7dfdaa894', // ДАУТАЙ (Я.Доставка Пеший/Авто Благовещенск)
-  '79': '8b99022cd8a24f8782fc19feff7a45e2', // ПРОФИЛОГИСТИК (Я.Доставка Пеший/Авто Саратов)
-  '81': '', // МАГИСТРАЛЬ (Я.Доставка Грузовое ЛюбойГород)
-  '89': '', // КАПЕЛЛА (Я.Доставка Пеший/Авто Самара)
-  '93': '', // СИРИУС (Я.Доставка Пеший/Авто Новосибирск)
-  '325': '', // ПРОЦИОН (Я.Доставка Пеший/Авто Челябинск)
-  '329': '', // ВЕГА (Я.Доставка Пеший/Авто Сочи)
-  '331': '', // АНТАРЕС (Я.Доставка Пеший/Авто Тула)
-  '333': '8ddb58b306774e458fc7d24203c36c14', // АРКТУР (Я.Доставка Пеший/Авто Омск)
-  '337': '', // ОРИОН (Я.Доставка Пеший/Авто Иркутск)
-} as const;
-
-export const YANDEX_TO_BITRIX_PARK: Record<string, string> = {
-  '8ddb58b306774e458fc7d24203c36c14': '333',
-  bf157cfe3a914fda817b1d2dde37ada1: '83',
-  '8b99022cd8a24f8782fc19feff7a45e2': '79',
-  '30ca63b508454371b9deb252b3306083': '95',
-  '89a42a3a9a964fff9c41fd076fd09c6c': '97',
-  '35c53a402f8b4f04a8806e68da798f20': '91',
-  c1af957f21b844868adc314f0e24e985: '87',
-  '9ac02ba7e5174c10b401cfb7dfdaa894': '335',
-} as const;
-
-export const YANDEX_DELIVERY_PARKS = [
-  'bf157cfe3a914fda817b1d2dde37ada1',
-  '8b99022cd8a24f8782fc19feff7a45e2',
-  '8ddb58b306774e458fc7d24203c36c14',
-  '30ca63b508454371b9deb252b3306083',
-  '89a42a3a9a964fff9c41fd076fd09c6c',
-  '35c53a402f8b4f04a8806e68da798f20',
-  'c1af957f21b844868adc314f0e24e985',
-  '9ac02ba7e5174c10b401cfb7dfdaa894',
-];
-
-export const YANDEX_PARKS_NAMES: Record<string, string> = {
-  '30ca63b508454371b9deb252b3306083': 'ФИШТ (Я.Доставка Авто Владивосток)',
-  '89a42a3a9a964fff9c41fd076fd09c6c': 'ЭВЕРЕСТ (Я.Доставка Пеший Владивосток)',
-  bf157cfe3a914fda817b1d2dde37ada1: 'ДЖИМАРА (Я.Доставка Авто Хабаровск)',
-  '35c53a402f8b4f04a8806e68da798f20': 'МИЖИРГИ (Я.Доставка Пеший Хабаровск)',
-  c1af957f21b844868adc314f0e24e985: 'БЕЛУХА (Я.Доставка Пеший/Авто Уссурийск)',
-  '9ac02ba7e5174c10b401cfb7dfdaa894': 'ДАУТАЙ (Я.Доставка Пеший/Авто Благовещенск)',
-  '8b99022cd8a24f8782fc19feff7a45e2': 'ПРОФИЛОГИСТИК (Я.Доставка Пеший/Авто Саратов)',
-  '8ddb58b306774e458fc7d24203c36c14': 'АРКТУР (Я.Доставка Пеший/Авто Омск)',
-} as const;
-
-export const YANDEX_TAXI_PARKS = [''];
 
 export interface BitrixDealFields {
   ID?: string;

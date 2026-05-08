@@ -5,10 +5,8 @@ import { YandexFleetProfileEntity } from './yandex-fleet-profile.entity';
 import {
   BITRIX_DICT,
   BITRIX_FIELDS,
-  BITRIX_TO_YANDEX_PARK,
   BitrixContactFields,
   BitrixDealFields,
-  YANDEX_TO_BITRIX_PARK,
 } from '../../bitrix/bitrix.type';
 import {
   DriverWorkStatus,
@@ -39,6 +37,12 @@ import {
 import { getBitrixCategory } from '../../bitrix/bitrix.utils';
 import { YandexFleetOrderService } from '../yandex-fleet-order/yandex-fleet-order.service';
 import { YandexFleetOrderEntity } from '../yandex-fleet-order/yandex-fleet-order.entity';
+import { YandexFleetParkEntity } from '../yandex-park.entity';
+import {
+  YandexFleetSyncStateEntity,
+  YandexFleetSyncStatus,
+  YandexFleetSyncType,
+} from '../yandex-fleet-sync-state.entity';
 
 export class YandexFleetProfileService {
   constructor(
@@ -47,37 +51,47 @@ export class YandexFleetProfileService {
     private yandexFleetOrderService: YandexFleetOrderService,
     private yandexFleetProfileRepository: Repository<YandexFleetProfileEntity>,
     private yandexFleetOrderRepository: Repository<YandexFleetOrderEntity>,
+    private syncStateRepository: Repository<YandexFleetSyncStateEntity>,
   ) {}
 
-  async syncProfiles(yandexParkId: string, newOnly: boolean): Promise<void> {
+  async syncProfiles(park: YandexFleetParkEntity, newOnly: boolean): Promise<void> {
+    const syncType = newOnly
+      ? YandexFleetSyncType.ProfilesNew
+      : YandexFleetSyncType.ProfilesExisting;
+
     console.log(
-      `[YandexFleetProfileService] Запуск синхронизации ${newOnly ? 'новых' : 'всех'} профилей: ${yandexParkId}`,
+      `[YandexFleetProfileService] Запуск синхронизации ${newOnly ? 'новых' : 'всех'} профилей: ${park.name}`,
     );
+
+    const startedAt = new Date();
+    const bufferOverlap = 30 * 60 * 1000;
+
+    let state = await this.syncStateRepository.findOne({
+      where: { parkId: park.id, syncType },
+    });
+
+    const fallback = new Date('2025-01-01T00:00:00Z');
+    fallback.setHours(fallback.getHours() - (newOnly ? 1 : 3));
+
+    const from = state?.lastSyncedTo
+      ? new Date(state.lastSyncedTo.getTime() - bufferOverlap)
+      : fallback;
+
+    state = await this.syncStateRepository.save({
+      ...(state ?? {}),
+      parkId: park.id,
+      syncType,
+      status: YandexFleetSyncStatus.Running,
+      lastRunAt: startedAt,
+    });
+
     try {
-      const oneHoursAgo = new Date();
-      oneHoursAgo.setHours(oneHoursAgo.getHours() - 1);
-
-      const threeHoursAgo = new Date();
-      threeHoursAgo.setHours(threeHoursAgo.getHours() - 1);
-
-      const twelveHoursAgo = new Date();
-      twelveHoursAgo.setHours(twelveHoursAgo.getHours() - 12);
-
-      const twoYearsAgo = new Date();
-      twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
-
       let offset = 0;
       const limit = newOnly ? 100 : 25;
       let total = 1;
 
       while (offset < total) {
-        const response = await this.yandexService.getProfiles(
-          yandexParkId,
-          limit,
-          offset,
-          newOnly ? oneHoursAgo : threeHoursAgo,
-        );
-
+        const response = await this.yandexService.getProfiles(park, limit, offset, from);
         total = response.total;
         const drivers = response.driver_profiles || [];
 
@@ -89,12 +103,7 @@ export class YandexFleetProfileService {
 
         for (const driver of drivers) {
           try {
-            await this.processYandexProfile(
-              yandexParkId,
-              driver.driver_profile.id,
-              driver,
-              newOnly,
-            );
+            await this.processYandexProfile(park, driver, newOnly);
           } catch (error) {
             console.error(
               `[YandexFleetProfileService] Ошибка обработки водителя ${driver.driver_profile.id}:`,
@@ -106,21 +115,36 @@ export class YandexFleetProfileService {
         offset += limit;
       }
 
+      await this.syncStateRepository.save({
+        ...state,
+        lastSyncedTo: startedAt,
+        status: YandexFleetSyncStatus.Idle,
+        lastError: null,
+        retryCount: 0,
+      });
+
       console.log(
-        `[YandexFleetProfileService] Синхронизация ${newOnly ? 'новых' : 'всех'} профилей ${yandexParkId} завершена.`,
+        `[YandexFleetProfileService] Синхронизация ${newOnly ? 'новых' : 'всех'} профилей ${park.name} завершена.`,
       );
     } catch (error) {
+      await this.syncStateRepository.save({
+        ...state,
+        status: YandexFleetSyncStatus.Failed,
+        lastError: error instanceof Error ? error.message : String(error),
+        retryCount: (state.retryCount ?? 0) + 1,
+      });
+
       console.error(
-        `[YandexFleetProfileService] Ошибка синхронизации ${newOnly ? 'новых' : 'всех'} профилей ${yandexParkId}:`,
+        `[YandexFleetProfileService] Ошибка синхронизации ${newOnly ? 'новых' : 'всех'} профилей ${park.name}:`,
         error,
       );
     }
   }
 
-  async syncProfileStages(yandexParkId: string): Promise<void> {
-    console.log(`[YandexFleetProfileService] Запуск синхронизации стадий: ${yandexParkId}`);
+  async syncProfileStages(park: YandexFleetParkEntity): Promise<void> {
+    console.log(`[YandexFleetProfileService] Запуск синхронизации стадий: ${park.name}`);
 
-    const category = getBitrixCategory(yandexParkId);
+    const category = getBitrixCategory(park.type);
     const stagesToSkip: string[] = [
       category.Duplicates,
       category.Refusal,
@@ -137,7 +161,7 @@ export class YandexFleetProfileService {
       while (true) {
         const profiles = await this.yandexFleetProfileRepository.find({
           where: {
-            parkId: yandexParkId,
+            parkId: park.id,
             bitrixStageId: Not(In(stagesToSkip)),
           },
           order: { yandexProfileId: 'ASC' },
@@ -152,7 +176,7 @@ export class YandexFleetProfileService {
             const lastOrders = await this.yandexFleetOrderRepository.find({
               where: {
                 profileId: profile.yandexProfileId,
-                parkId: yandexParkId,
+                parkId: park.id,
                 status: OrderStatus.Complete,
               },
               order: { bookedAt: 'DESC' },
@@ -195,13 +219,10 @@ export class YandexFleetProfileService {
       }
 
       console.log(
-        `[YandexFleetProfileService] Синхронизация стадий ${yandexParkId} завершена. Обновлено: ${updated}.`,
+        `[YandexFleetProfileService] Синхронизация стадий ${park.name} завершена. Обновлено: ${updated}.`,
       );
     } catch (error) {
-      console.error(
-        `[YandexFleetProfileService] Ошибка синхронизации стадий ${yandexParkId}:`,
-        error,
-      );
+      console.error(`[YandexFleetProfileService] Ошибка синхронизации стадий ${park.name}:`, error);
     }
   }
 
@@ -224,7 +245,7 @@ export class YandexFleetProfileService {
 
   private buildDealPayload(
     profileId: string,
-    parkId: string,
+    park: YandexFleetParkEntity,
     driverProfile: YandexFleetDriverProfile,
     driverCar: YandexFleetVehicleData | undefined,
     isNew: boolean,
@@ -241,10 +262,9 @@ export class YandexFleetProfileService {
     const vehicleSpecifications = driverCar?.vehicle_specifications;
     const vehiclePark = driverCar?.park_profile;
     const vehicleLicenses = driverCar?.vehicle_licenses;
-    const bitrixDispatcherId = YANDEX_TO_BITRIX_PARK[parkId];
 
     return cleanPayload({
-      [BITRIX_FIELDS.DISPATCHER]: bitrixDispatcherId,
+      [BITRIX_FIELDS.DISPATCHER]: park.bitrixDispatcherId,
       [BITRIX_FIELDS.BIRTH_DATE]: formatDateForBitrix(dl.birth_date),
       [BITRIX_FIELDS.FIRST_NAME_DISP]: firstName,
       [BITRIX_FIELDS.LAST_NAME_DISP]: lastName,
@@ -253,9 +273,9 @@ export class YandexFleetProfileService {
       [BITRIX_FIELDS.PHONE_SYSTEM]: phone,
       [BITRIX_FIELDS.VACANCY]: mapVacancy(driverCar),
       [BITRIX_FIELDS.CONTRACTOR_TYPE]: mapContractorType(driverCar),
-      [BITRIX_FIELDS.AGGREGATOR]: mapAggregator(parkId),
+      [BITRIX_FIELDS.AGGREGATOR]: mapAggregator(park.type),
       [BITRIX_FIELDS.HIRE_DATE]: formatDateForBitrix(profile.hire_date),
-      CATEGORY_ID: mapCategory(parkId),
+      CATEGORY_ID: mapCategory(park.type),
       COMMENTS: profile.comment,
 
       // ВУ
@@ -300,12 +320,12 @@ export class YandexFleetProfileService {
       [BITRIX_FIELDS.BALANCE_LIMIT]: driverProfile.account.balance_limit,
       [BITRIX_FIELDS.PROFILE_ID]: profileId,
       [BITRIX_FIELDS.PROFILE_LINK]:
-        'https://fleet.yandex.ru/contractors/' + profileId + '/details?park_id=' + parkId,
+        'https://fleet.yandex.ru/contractors/' + profileId + '/details?park_id=' + park.id,
     });
   }
 
   private async createProfile(params: {
-    parkId: string;
+    park: YandexFleetParkEntity;
     profileId: string;
     driverProfile: YandexFleetDriverProfile;
     driverCar: YandexFleetVehicleData | undefined;
@@ -317,7 +337,7 @@ export class YandexFleetProfileService {
     existingContactId?: number;
   }): Promise<void> {
     const {
-      parkId,
+      park,
       profileId,
       driverProfile,
       driverCar,
@@ -331,7 +351,7 @@ export class YandexFleetProfileService {
 
     const flat = this.extractFlatFields(driverProfile, driverCar, lastOrderDate, firstOrderDate);
     const contactPayload = this.buildContactPayload(driverProfile);
-    const dealPayload = this.buildDealPayload(profileId, parkId, driverProfile, driverCar, true);
+    const dealPayload = this.buildDealPayload(profileId, park, driverProfile, driverCar, true);
 
     let contactId: number;
     if (existingContactId) {
@@ -350,7 +370,7 @@ export class YandexFleetProfileService {
 
     await this.yandexFleetProfileRepository.save({
       yandexProfileId: profileId,
-      parkId,
+      parkId: park.id,
       bitrixStageId: stage,
       bitrixContactId: String(contactId),
       bitrixDealId: String(dealId),
@@ -361,12 +381,12 @@ export class YandexFleetProfileService {
     });
 
     console.log(
-      `[YandexFleetProfileService] Профиль ${profileId} в парке ${parkId} создан. Сделка: ${String(dealId)}. Контакт: ${String(contactId)}`,
+      `[YandexFleetProfileService] Профиль ${profileId} в парке ${park.name} создан. Сделка: ${String(dealId)}. Контакт: ${String(contactId)}`,
     );
   }
 
   private async updateProfile(params: {
-    parkId: string;
+    park: YandexFleetParkEntity;
     profileId: string;
     driverProfile: YandexFleetDriverProfile;
     driverCar: YandexFleetVehicleData | undefined;
@@ -378,7 +398,7 @@ export class YandexFleetProfileService {
     firstOrderDate: Date | null;
   }): Promise<void> {
     const {
-      parkId,
+      park,
       profileId,
       driverProfile,
       driverCar,
@@ -391,7 +411,7 @@ export class YandexFleetProfileService {
     } = params;
 
     const contactPayload = this.buildContactPayload(driverProfile);
-    const dealPayload = this.buildDealPayload(profileId, parkId, driverProfile, driverCar, false);
+    const dealPayload = this.buildDealPayload(profileId, park, driverProfile, driverCar, false);
     dealPayload.STAGE_ID = stage;
 
     if (localState.bitrixContactId) {
@@ -412,23 +432,22 @@ export class YandexFleetProfileService {
     localState.fleetCreatedAt = createdDate;
     await this.yandexFleetProfileRepository.save(localState);
     console.log(
-      `[YandexFleetProfileService] Профиль ${profileId} в парке ${parkId} обновлен. Сделка: ${String(localState.bitrixDealId)}. Контакт: ${String(localState.bitrixContactId)}`,
+      `[YandexFleetProfileService] Профиль ${profileId} в парке ${park.name} обновлен. Сделка: ${String(localState.bitrixDealId)}. Контакт: ${String(localState.bitrixContactId)}`,
     );
   }
 
   private async processYandexProfile(
-    parkId: string,
-    profileId: string,
+    park: YandexFleetParkEntity,
     driver: YandexFleetDriverProfileItem,
     newOnly: boolean,
   ): Promise<void> {
     let localState = await this.yandexFleetProfileRepository.findOneBy({
-      yandexProfileId: profileId,
+      yandexProfileId: driver.driver_profile.id,
     });
 
     if (newOnly && localState) return;
 
-    const category = getBitrixCategory(parkId);
+    const category = getBitrixCategory(park.type);
     const stagesToSkip: readonly string[] = [
       category.Duplicates,
       category.Refusal,
@@ -439,10 +458,10 @@ export class YandexFleetProfileService {
 
     let driverCar = undefined;
     if (driver.car?.id) {
-      driverCar = await this.yandexService.getCar(parkId, driver.car.id);
+      driverCar = await this.yandexService.getCar(park, driver.car.id);
     }
 
-    const driverProfile = await this.yandexService.getProfile(parkId, driver.driver_profile.id);
+    const driverProfile = await this.yandexService.getProfile(park, driver.driver_profile.id);
 
     if ((driverProfile.person.driver_license.country as string) === 'vnm') {
       driverProfile.person.driver_license.country = undefined;
@@ -474,8 +493,7 @@ export class YandexFleetProfileService {
 
     if (needsRelink) {
       const result = await this.findAndLinkExistingBitrixProfile(
-        parkId,
-        profileId,
+        park,
         driver,
         driverProfile,
         driverCar,
@@ -489,7 +507,7 @@ export class YandexFleetProfileService {
     }
 
     const lastOrders = await this.yandexFleetOrderRepository.find({
-      where: { profileId, parkId, status: OrderStatus.Complete },
+      where: { profileId: driver.driver_profile.id, parkId: park.id, status: OrderStatus.Complete },
       order: { bookedAt: 'DESC' },
       take: 30,
     });
@@ -516,13 +534,17 @@ export class YandexFleetProfileService {
     const lastOrderDate = lastOrders.length > 0 ? new Date(lastOrders[0].bookedAt) : null;
     let firstOrderDate = localState?.firstOrderDate || null;
 
-    if (!firstOrderDate && (!localState || localState.bitrixStageId !== category.Archive)) {
+    if (!firstOrderDate) {
       const oldestLocalOrder = await this.yandexFleetOrderRepository.findOne({
-        where: { profileId, parkId, status: OrderStatus.Complete },
+        where: {
+          profileId: driver.driver_profile.id,
+          parkId: park.id,
+          status: OrderStatus.Complete,
+        },
         order: { bookedAt: 'ASC' },
       });
 
-      if (oldestLocalOrder && (hireDate ?? createdDate) >= oldestLocalOrder.bookedAt) {
+      if (oldestLocalOrder) {
         firstOrderDate = oldestLocalOrder.bookedAt;
       }
     }
@@ -531,8 +553,8 @@ export class YandexFleetProfileService {
 
     if (!localState) {
       await this.createProfile({
-        parkId,
-        profileId,
+        park,
+        profileId: driver.driver_profile.id,
         driverProfile,
         driverCar,
         stage,
@@ -545,8 +567,8 @@ export class YandexFleetProfileService {
       return;
     } else if (localState.dataHash !== currentHash) {
       await this.updateProfile({
-        parkId,
-        profileId,
+        park,
+        profileId: driver.driver_profile.id,
         driverProfile,
         driverCar,
         stage,
@@ -590,8 +612,7 @@ export class YandexFleetProfileService {
   }
 
   private async findAndLinkExistingBitrixProfile(
-    parkId: string,
-    profileId: string,
+    park: YandexFleetParkEntity,
     driver: YandexFleetDriverProfileItem,
     driverProfile: YandexFleetDriverProfile,
     driverCar: YandexFleetVehicleData | undefined,
@@ -600,7 +621,7 @@ export class YandexFleetProfileService {
     | { kind: 'contact-only'; contactId: number }
     | { kind: 'none' }
   > {
-    const category = getBitrixCategory(parkId);
+    const category = getBitrixCategory(park.type);
 
     const phones = Array.from(
       new Set(
@@ -642,7 +663,7 @@ export class YandexFleetProfileService {
         ? String(deal[BITRIX_FIELDS.PROFILE_ID])
         : undefined;
 
-      if (dealProfileId === profileId) {
+      if (dealProfileId === driver.driver_profile.id) {
         matchedDeal = deal;
         break;
       }
@@ -655,13 +676,13 @@ export class YandexFleetProfileService {
           ? String(deal[BITRIX_FIELDS.PROFILE_ID])
           : undefined;
 
-        if (BITRIX_TO_YANDEX_PARK[dispatcherId] !== parkId) continue;
-        if (dealProfileId && dealProfileId !== profileId) continue;
+        if (dispatcherId !== park.bitrixDispatcherId) continue;
+        if (dealProfileId && dealProfileId !== driver.driver_profile.id) continue;
 
         const alreadyLinked = await this.yandexFleetProfileRepository.findOneBy({
           bitrixDealId: String(deal.ID),
         });
-        if (alreadyLinked && alreadyLinked.yandexProfileId !== profileId) continue;
+        if (alreadyLinked && alreadyLinked.yandexProfileId !== driver.driver_profile.id) continue;
 
         matchedDeal = deal;
         break;
@@ -675,7 +696,7 @@ export class YandexFleetProfileService {
         const alreadyLinked = await this.yandexFleetProfileRepository.findOneBy({
           bitrixDealId: String(deal.ID),
         });
-        if (alreadyLinked && alreadyLinked.yandexProfileId !== profileId) continue;
+        if (alreadyLinked && alreadyLinked.yandexProfileId !== driver.driver_profile.id) continue;
 
         matchedDeal = deal;
         break;
@@ -688,8 +709,8 @@ export class YandexFleetProfileService {
       const hiredAt = hireDateRaw ? String(hireDateRaw) : null;
 
       const state = await this.yandexFleetProfileRepository.save({
-        yandexProfileId: profileId,
-        parkId,
+        yandexProfileId: driver.driver_profile.id,
+        parkId: park.id,
         bitrixStageId: stage,
         bitrixContactId: String(matchedDeal.CONTACT_ID),
         bitrixDealId: String(matchedDeal.ID),

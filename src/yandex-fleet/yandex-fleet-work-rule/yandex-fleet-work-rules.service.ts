@@ -1,6 +1,7 @@
 import { YandexFleetService } from '../yandex-fleet.service';
 import { Repository } from 'typeorm';
 import { YandexFleetWorkRuleEntity } from './yandex-fleet-work-rule.entity';
+import { YandexFleetParkEntity } from '../yandex-park.entity';
 
 export class YandexFleetWorkRuleService {
   constructor(
@@ -8,16 +9,16 @@ export class YandexFleetWorkRuleService {
     private readonly yandexFleetService: YandexFleetService,
   ) {}
 
-  async syncParkWorkRules(parkId: string): Promise<void> {
-    console.log(`[YandexFleetWorkRuleService] Запуск полинга для правил парка ${parkId}`);
+  async syncParkWorkRules(park: YandexFleetParkEntity): Promise<void> {
+    console.log(`[YandexFleetWorkRuleService] Запуск полинга для правил парка ${park.name}`);
     try {
-      const response = await this.yandexFleetService.getWorkRules(parkId);
+      const response = await this.yandexFleetService.getWorkRules(park);
 
       for (const rule of response.rules) {
         await this.yandexFleetWorkRuleRepository.upsert(
           {
             id: rule.id,
-            parkId,
+            parkId: park.id,
             name: rule.name,
             isEnabled: rule.is_enabled,
           },
@@ -26,17 +27,17 @@ export class YandexFleetWorkRuleService {
       }
 
       const yandexIds = response.rules.map((r) => r.id);
-      const localRules = await this.yandexFleetWorkRuleRepository.findBy({ parkId });
+      const localRules = await this.yandexFleetWorkRuleRepository.findBy({ parkId: park.id });
 
       for (const local of localRules) {
         if (!yandexIds.includes(local.id)) {
           await this.yandexFleetWorkRuleRepository.remove(local);
         }
       }
-      console.log(`[YandexFleetWorkRuleService] Синхронизированы правил для парка ${parkId}`);
+      console.log(`[YandexFleetWorkRuleService] Синхронизированы правил для парка ${park.name}`);
     } catch (error) {
       console.error(
-        `[YandexFleetWorkRuleService] Ошибка синхронизации правил парка ${parkId}:`,
+        `[YandexFleetWorkRuleService] Ошибка синхронизации правил парка ${park.name}:`,
         error,
       );
     }

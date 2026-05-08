@@ -5,9 +5,6 @@ import {
   BitrixContactFields,
   BitrixDealCategory,
   BitrixDealFields,
-  YANDEX_DELIVERY_PARKS,
-  YANDEX_PARKS_NAMES,
-  YANDEX_TAXI_PARKS,
 } from './bitrix.type';
 import crypto from 'crypto';
 import {
@@ -23,6 +20,7 @@ import {
   YandexFleetEmployment,
 } from '../yandex-fleet/yandex-fleet.type';
 import axios from 'axios';
+import { YandexFleetParkType } from '../yandex-fleet/yandex-park.entity';
 
 const BITRIX_COLOR_TO_YANDEX: Record<number, VehicleColor> = {
   [BITRIX_DICT.COLOR.WHITE]: VehicleColor.White,
@@ -219,14 +217,14 @@ export const formatDateForYandex = (dateStr?: string): string | undefined => {
 };
 
 export const getBitrixCategory = (
-  parkId: string,
+  type: YandexFleetParkType,
 ): (typeof BITRIX_CATEGORY_STAGE)[keyof typeof BITRIX_CATEGORY_STAGE] => {
-  if (YANDEX_DELIVERY_PARKS.includes(parkId))
+  if (type === YandexFleetParkType.Delivery)
     return BITRIX_CATEGORY_STAGE[BitrixDealCategory.YANDEX_DELIVERY];
-  if (YANDEX_TAXI_PARKS.includes(parkId))
+  if (type === YandexFleetParkType.Taxi)
     return BITRIX_CATEGORY_STAGE[BitrixDealCategory.YANDEX_TAXI];
 
-  throw new Error('No such parkId in constants');
+  throw new Error('No such park type in constants');
 };
 
 export const formatPhoneNumber = (phone?: string) => {
@@ -303,14 +301,4 @@ export const buildError = (error: unknown, service: string): Error => {
   } else {
     return new Error(String(error));
   }
-};
-
-export const mapParkName = (parkId: string) => {
-  const parkName = YANDEX_PARKS_NAMES[parkId];
-
-  if (!parkName) {
-    throw new Error(`No name with such park is provided. ParkId: ${parkId}`);
-  }
-
-  return parkName;
 };

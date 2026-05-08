@@ -1,8 +1,6 @@
-import { YANDEX_TO_BITRIX_PARK } from './bitrix/bitrix.type';
-
 interface AppConfig {
   inboundWebhookUrl: string;
-  yandexApiKeys: Record<keyof typeof YANDEX_TO_BITRIX_PARK, string>;
+  yandexApiKeys: Record<string, string>;
   bitrixAuthToken: string;
   googleSheetsSheetId: string;
 }
@@ -28,6 +26,15 @@ export function loadConfig(): AppConfig {
       '35c53a402f8b4f04a8806e68da798f20': requireEnv('MIZHIRGI_YANDEX_API_KEY'),
       '30ca63b508454371b9deb252b3306083': requireEnv('FISHT_YANDEX_API_KEY'),
       '9ac02ba7e5174c10b401cfb7dfdaa894': requireEnv('DAUTAI_YANDEX_API_KEY'),
+      e08fb4afb94c4c93bc219e01f5fbf4d0: requireEnv('GLORIAN_YANDEX_API_KEY'),
+      '2af51b8a58374530ad09b72b22ca8f46': requireEnv('KARAT_YANDEX_API_KEY'),
+      b41f8b4eb31d4ab582ddb13ab3c12f2c: requireEnv('ASKOLD_YANDEX_API_KEY'),
+      f64fa7f2878546a69c0f54e874cba4b8: requireEnv('KARAVAN_YANDEX_API_KEY'),
+      '702a99bde8e441a8bc931e7db59df3e5': requireEnv('FARTCAR_YANDEX_API_KEY'),
+      c45bf27db32a4974b3edf382489ff246: requireEnv('MAGISTRAL_YANDEX_API_KEY'),
+      a2cbcab863d848f6baa7ae485f57e3d7: requireEnv('ALPHA_YANDEX_API_KEY'),
+      '760f5b77a27247769e60eacd66177cd2': requireEnv('KAPELLA_YANDEX_API_KEY'),
+      d75483feacd2499e8e601f9fd17a5f73: requireEnv('VEGA_YANDEX_API_KEY'),
     } as Record<string, string>,
     googleSheetsSheetId: requireEnv('GOOGLE_SHEET_ID'),
   };

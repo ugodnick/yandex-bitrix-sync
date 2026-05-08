@@ -6,28 +6,24 @@ import {
   YandexDriverProfileResponse,
   YandexWorkRule,
   YandexFleetVehicleData,
-  YandexCarResponse,
   YandexOrdersResponse,
-  OrderStatus,
-  YandexFleetOrder,
   YandexFleetUpdateCarRequest,
-  YandexFleetCreateWalkCourier,
-  YandexFleetCreateWalkSECourier,
   YandexFleetSupplyHours,
 } from './yandex-fleet.type';
-import { YANDEX_TO_BITRIX_PARK } from '../bitrix/bitrix.type';
 import yandexApiClient from './yandex-fleet.client';
+import { YandexFleetParkEntity } from './yandex-park.entity';
 
 export class YandexFleetService {
   private client: AxiosInstance = yandexApiClient;
 
-  constructor(private apiKeys: Record<keyof typeof YANDEX_TO_BITRIX_PARK, string>) {}
-
-  async getProfile(parkId: string, contractorProfileId: string): Promise<YandexFleetDriverProfile> {
+  async getProfile(
+    park: YandexFleetParkEntity,
+    contractorProfileId: string,
+  ): Promise<YandexFleetDriverProfile> {
     try {
       const response = await this.client.get('/v2/parks/contractors/driver-profile', {
         params: { contractor_profile_id: contractorProfileId },
-        headers: this.getParkHeaders(parkId),
+        headers: this.getParkHeaders(park),
       });
 
       return response.data;
@@ -36,11 +32,11 @@ export class YandexFleetService {
     }
   }
 
-  async getWorkRules(parkId: string): Promise<{ rules: YandexWorkRule[] }> {
+  async getWorkRules(park: YandexFleetParkEntity): Promise<{ rules: YandexWorkRule[] }> {
     try {
       const response = await this.client.get('/v1/parks/driver-work-rules', {
-        params: { park_id: parkId },
-        headers: this.getParkHeaders(parkId),
+        params: { park_id: park },
+        headers: this.getParkHeaders(park),
       });
 
       return response.data;
@@ -50,7 +46,7 @@ export class YandexFleetService {
   }
 
   async getProfiles(
-    parkId: string,
+    park: YandexFleetParkEntity,
     limit: number = 100,
     offset: number = 0,
     from: Date,
@@ -61,7 +57,7 @@ export class YandexFleetService {
         {
           query: {
             park: {
-              id: parkId,
+              id: park,
               updated_at: {
                 from: from.toISOString(),
               },
@@ -79,7 +75,7 @@ export class YandexFleetService {
           limit,
           offset,
         },
-        { headers: this.getParkHeaders(parkId) },
+        { headers: this.getParkHeaders(park) },
       );
 
       return response.data;
@@ -88,35 +84,12 @@ export class YandexFleetService {
     }
   }
 
-  async getCar(parkId: string, vehicleId: string): Promise<YandexFleetVehicleData> {
+  async getCar(park: YandexFleetParkEntity, vehicleId: string): Promise<YandexFleetVehicleData> {
     try {
       const response = await this.client.get('/v2/parks/vehicles/car', {
         params: { vehicle_id: vehicleId },
-        headers: this.getParkHeaders(parkId),
+        headers: this.getParkHeaders(park),
       });
-
-      return response.data;
-    } catch (error: unknown) {
-      this.handleError(error);
-    }
-  }
-
-  async getCars(
-    parkId: string,
-    limit: number = 100,
-    offset: number = 0,
-  ): Promise<YandexCarResponse> {
-    try {
-      const response = await this.client.post<YandexCarResponse>(
-        '/v1/parks/cars/list',
-        {
-          query: { park: { id: parkId } },
-          // fields,
-          limit,
-          offset,
-        },
-        { headers: this.getParkHeaders(parkId) },
-      );
 
       return response.data;
     } catch (error: unknown) {
@@ -125,89 +98,22 @@ export class YandexFleetService {
   }
 
   async updateCar(
-    parkId: string,
+    park: YandexFleetParkEntity,
     vehicleId: string,
     data: YandexFleetUpdateCarRequest,
   ): Promise<void> {
     try {
       await this.client.put('/v2/parks/vehicles/car', data, {
         params: { vehicle_id: vehicleId },
-        headers: this.getParkHeaders(parkId),
+        headers: this.getParkHeaders(park),
       });
     } catch (error: unknown) {
       this.handleError(error);
     }
   }
 
-  async createCar(parkId: string, data: YandexFleetUpdateCarRequest): Promise<string> {
-    try {
-      const idempotencyToken = crypto.randomUUID();
-
-      const response = await this.client.post<{ vehicle_id: string }>(
-        '/v2/parks/vehicles/car',
-        data,
-        {
-          headers: {
-            ...this.getParkHeaders(parkId),
-            'X-Idempotency-Token': idempotencyToken,
-          },
-        },
-      );
-
-      return response.data.vehicle_id;
-    } catch (error: unknown) {
-      this.handleError(error);
-    }
-  }
-
-  async getFirstOrderDate(
-    parkId: string,
-    driverProfileId: string,
-    hireDate: Date,
-  ): Promise<Date | null> {
-    const from = hireDate;
-    const to = new Date(hireDate.getTime() + 28 * 24 * 60 * 60 * 1000); // +4 недели
-
-    const orders = await this.getOrdersInWindow(parkId, driverProfileId, from, to);
-
-    if (orders.length > 0) {
-      const earliest = orders.reduce((min, o) =>
-        new Date(o.booked_at) < new Date(min.booked_at) ? o : min,
-      );
-      return new Date(earliest.booked_at);
-    }
-
-    return null;
-  }
-
-  private async getOrdersInWindow(
-    parkId: string,
-    driverProfileId: string,
-    from: Date,
-    to: Date,
-  ): Promise<YandexFleetOrder[]> {
-    const response = await this.client.post<YandexOrdersResponse>(
-      '/v1/parks/orders/list',
-      {
-        query: {
-          park: {
-            id: parkId,
-            order: {
-              booked_at: { from: from.toISOString(), to: to.toISOString() },
-              statuses: [OrderStatus.Complete],
-            },
-            driver_profile: { id: driverProfileId },
-          },
-        },
-        limit: 500,
-      },
-      { headers: this.getParkHeaders(parkId) },
-    );
-    return response.data.orders;
-  }
-
   async getOrdersPage(
-    parkId: string,
+    park: YandexFleetParkEntity,
     from: Date,
     to: Date,
     cursor?: string,
@@ -217,7 +123,7 @@ export class YandexFleetService {
       {
         query: {
           park: {
-            id: parkId,
+            id: park,
             order: {
               booked_at: { from: from.toISOString(), to: to.toISOString() },
             },
@@ -226,13 +132,13 @@ export class YandexFleetService {
         limit: 500,
         ...(cursor ? { cursor } : {}),
       },
-      { headers: this.getParkHeaders(parkId) },
+      { headers: this.getParkHeaders(park) },
     );
     return response.data;
   }
 
   async createProfile(
-    parkId: string,
+    park: YandexFleetParkEntity,
     driverData: YandexFleetCreateContractorProfile,
   ): Promise<string> {
     try {
@@ -241,7 +147,7 @@ export class YandexFleetService {
       const response = await this.client.post('/v1/parks/contractors/profile', driverData, {
         headers: {
           'X-Idempotency-Token': idempotencyToken,
-          ...this.getParkHeaders(parkId),
+          ...this.getParkHeaders(park),
         },
       });
       return response.data.contractor_profile_id;
@@ -250,48 +156,8 @@ export class YandexFleetService {
     }
   }
 
-  async createWalkCourier(parkId: string, data: YandexFleetCreateWalkCourier): Promise<string> {
-    try {
-      const idempotencyToken = crypto.randomUUID();
-
-      const response = await this.client.post(
-        '/v2/parks/contractors/walking-courier-profile',
-        data,
-        {
-          headers: {
-            'X-Idempotency-Token': idempotencyToken,
-            ...this.getParkHeaders(parkId),
-          },
-        },
-      );
-      return response.data.contractor_profile_id;
-    } catch (error: unknown) {
-      this.handleError(error);
-    }
-  }
-
-  async createWalkSECourier(parkId: string, data: YandexFleetCreateWalkSECourier): Promise<string> {
-    try {
-      const idempotencyToken = crypto.randomUUID();
-
-      const response = await this.client.post(
-        'v3/parks/contractors/walking-courier-profile',
-        data,
-        {
-          headers: {
-            'X-Idempotency-Token': idempotencyToken,
-            ...this.getParkHeaders(parkId),
-          },
-        },
-      );
-      return response.data.id;
-    } catch (error: unknown) {
-      this.handleError(error);
-    }
-  }
-
   async getDriverSupplyHours(
-    parkId: string,
+    park: YandexFleetParkEntity,
     contractorProfileId: string,
     periodFrom: Date,
     periodTo: Date,
@@ -305,7 +171,7 @@ export class YandexFleetService {
             period_from: periodFrom.toISOString(),
             period_to: periodTo.toISOString(),
           },
-          headers: this.getParkHeaders(parkId),
+          headers: this.getParkHeaders(park),
         },
       );
 
@@ -316,7 +182,7 @@ export class YandexFleetService {
   }
 
   async updateProfile(
-    parkId: string,
+    park: YandexFleetParkEntity,
     contractorProfileId: string,
     updateData: YandexFleetDriverProfile,
   ): Promise<void> {
@@ -325,24 +191,18 @@ export class YandexFleetService {
         params: {
           contractor_profile_id: contractorProfileId,
         },
-        headers: this.getParkHeaders(parkId),
+        headers: this.getParkHeaders(park),
       });
     } catch (error: unknown) {
       this.handleError(error);
     }
   }
 
-  private getParkHeaders(parkId: string) {
-    const apiKey = this.apiKeys[parkId];
-
-    if (!apiKey) {
-      throw new Error(`[YandexFleet] Критическая ошибка: Не найден API-ключ для парка ${parkId}`);
-    }
-
+  private getParkHeaders(park: YandexFleetParkEntity) {
     return {
-      'X-Client-ID': `taxi/park/${parkId}`,
-      'X-Park-ID': parkId,
-      'X-API-Key': apiKey,
+      'X-Client-ID': `taxi/park/${park.id}`,
+      'X-Park-ID': park.id,
+      'X-API-Key': park.apiKey,
     };
   }
 
