@@ -188,4 +188,39 @@ export class GoogleSheetsAPIService {
     }
     return result;
   }
+
+  public async truncateSheet(sheet: SheetName, keepHeaderRows = 1): Promise<void> {
+    const meta = await this.sheets.spreadsheets.get({
+      spreadsheetId: this.spreadsheetId,
+      fields: 'sheets(properties(sheetId,title,gridProperties))',
+    });
+
+    const target = meta.data.sheets?.find((s) => s.properties?.title === sheet);
+    if (!target?.properties) {
+      throw new Error(`Sheet "${sheet}" not found`);
+    }
+
+    const sheetId = target.properties.sheetId!;
+    const rowCount = target.properties.gridProperties?.rowCount ?? 0;
+
+    if (rowCount <= keepHeaderRows) return;
+
+    await this.sheets.spreadsheets.batchUpdate({
+      spreadsheetId: this.spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            deleteDimension: {
+              range: {
+                sheetId,
+                dimension: 'ROWS',
+                startIndex: keepHeaderRows,
+                endIndex: rowCount,
+              },
+            },
+          },
+        ],
+      },
+    });
+  }
 }

@@ -59,7 +59,7 @@ export class YandexFleetSheetExportService {
     }
 
     await this.googleSheetsApiService.clearSheet(SheetName.Contractors, 1);
-    await this.googleSheetsApiService.ensureHeaders(SheetName.Contractors);
+    await this.googleSheetsApiService.truncateSheet(SheetName.Contractors);
     await this.googleSheetsApiService.appendRawRows(SheetName.Contractors, allRows);
   }
 
@@ -87,7 +87,7 @@ export class YandexFleetSheetExportService {
     }
 
     await this.googleSheetsApiService.clearSheet(SheetName.Orders, 1);
-    await this.googleSheetsApiService.ensureHeaders(SheetName.Orders);
+    await this.googleSheetsApiService.truncateSheet(SheetName.Orders);
     await this.googleSheetsApiService.appendRawRows(SheetName.Orders, allRows);
   }
 
@@ -177,7 +177,7 @@ export class YandexFleetSheetExportService {
     }
 
     await this.googleSheetsApiService.clearSheet(sheetName, 1);
-    await this.googleSheetsApiService.ensureHeaders(sheetName);
+    await this.googleSheetsApiService.truncateSheet(sheetName);
     await this.googleSheetsApiService.appendRawRows(sheetName, allRows);
 
     console.log(
