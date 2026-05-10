@@ -1,5 +1,16 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
+const existingParksIds = [
+  'bf157cfe3a914fda817b1d2dde37ada1', // JIMARA
+  '8ddb58b306774e458fc7d24203c36c14', // ARKTUR
+  '8b99022cd8a24f8782fc19feff7a45e2', // PROFLOGISTIC
+  'c1af957f21b844868adc314f0e24e985', // BELUKHA
+  '89a42a3a9a964fff9c41fd076fd09c6c', // EVEREST
+  '35c53a402f8b4f04a8806e68da798f20', // MIZHIRGI
+  '30ca63b508454371b9deb252b3306083', // FISHT
+  '9ac02ba7e5174c10b401cfb7dfdaa894', // DAUTAI
+];
+
 export class SeedYandexFleetParks1778210346148 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     const parks = [
@@ -146,8 +157,8 @@ export class SeedYandexFleetParks1778210346148 implements MigrationInterface {
         continue;
       }
       await queryRunner.query(
-        `INSERT INTO yandex_fleet_park (id, bitrix_dispatcher_id, name, type, api_key) VALUES (?, ?, ?, ?, ?)`,
-        [p.id, p.dispatcher, p.name, p.type, apiKey],
+        `INSERT INTO yandex_fleet_park (id, bitrix_dispatcher_id, name, type, api_key, is_active) VALUES (?, ?, ?, ?, ?, ?)`,
+        [p.id, p.dispatcher, p.name, p.type, apiKey, existingParksIds.includes(p.id)],
       );
     }
   }

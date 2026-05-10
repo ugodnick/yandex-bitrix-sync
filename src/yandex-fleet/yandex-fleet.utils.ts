@@ -111,7 +111,7 @@ export const mapVacancy = (
   park: YandexFleetParkEntity,
   car: YandexFleetVehicleData | undefined,
 ): (typeof BITRIX_DICT.VACANCY)[keyof typeof BITRIX_DICT.VACANCY] => {
-  if (park.type === YandexFleetParkType.Taxi) BITRIX_DICT.VACANCY.TAXI;
+  if (park.type === YandexFleetParkType.Taxi) return BITRIX_DICT.VACANCY.TAXI;
   if (!car || !car.vehicle_specifications.vin) return BITRIX_DICT.VACANCY.FOOT_BIKE;
   if (car.cargo) return BITRIX_DICT.VACANCY.CARGO;
 
@@ -122,7 +122,7 @@ export const mapContractorType = (
   park: YandexFleetParkEntity,
   car: YandexFleetVehicleData | undefined,
 ): (typeof BITRIX_DICT.CONTRACTOR_TYPE)[keyof typeof BITRIX_DICT.CONTRACTOR_TYPE] => {
-  if (park.type === YandexFleetParkType.Taxi) BITRIX_DICT.CONTRACTOR_TYPE.TAXI_DRIVER;
+  if (park.type === YandexFleetParkType.Taxi) return BITRIX_DICT.CONTRACTOR_TYPE.TAXI_DRIVER;
   if (!car || !car.vehicle_specifications.vin)
     return BITRIX_DICT.CONTRACTOR_TYPE.BICYCLE_FOOT_COURIER;
   if (car.cargo) return BITRIX_DICT.CONTRACTOR_TYPE.CARGO_DRIVER;

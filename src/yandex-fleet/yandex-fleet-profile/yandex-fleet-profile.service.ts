@@ -63,6 +63,16 @@ export class YandexFleetProfileService {
       `[YandexFleetProfileService] Запуск синхронизации ${newOnly ? 'новых' : 'всех'} профилей: ${park.name}`,
     );
 
+    const ordersState = await this.syncStateRepository.findOne({
+      where: { parkId: park.id, syncType: YandexFleetSyncType.Orders },
+    });
+    if (!ordersState?.lastSyncedTo) {
+      console.log(
+        `[YandexFleetProfileService] Пропуск синхронизации профилей ${park.name}: заказы ещё не синхронизированы.`,
+      );
+      return;
+    }
+
     const startedAt = new Date();
     const bufferOverlap = 30 * 60 * 1000;
 
@@ -71,7 +81,6 @@ export class YandexFleetProfileService {
     });
 
     const fallback = new Date('2025-01-01T00:00:00Z');
-    fallback.setHours(fallback.getHours() - (newOnly ? 1 : 3));
 
     const from = state?.lastSyncedTo
       ? new Date(state.lastSyncedTo.getTime() - bufferOverlap)

@@ -35,7 +35,7 @@ export class YandexFleetService {
   async getWorkRules(park: YandexFleetParkEntity): Promise<{ rules: YandexWorkRule[] }> {
     try {
       const response = await this.client.get('/v1/parks/driver-work-rules', {
-        params: { park_id: park },
+        params: { park_id: park.id },
         headers: this.getParkHeaders(park),
       });
 
@@ -57,7 +57,7 @@ export class YandexFleetService {
         {
           query: {
             park: {
-              id: park,
+              id: park.id,
               updated_at: {
                 from: from.toISOString(),
               },
@@ -123,7 +123,7 @@ export class YandexFleetService {
       {
         query: {
           park: {
-            id: park,
+            id: park.id,
             order: {
               booked_at: { from: from.toISOString(), to: to.toISOString() },
             },

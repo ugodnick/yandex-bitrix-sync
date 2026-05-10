@@ -21,6 +21,7 @@ import { YandexFleetOrderEntity } from './yandex-fleet/yandex-fleet-order/yandex
 import { DataSource, Repository } from 'typeorm';
 import { Queue } from './queue';
 import { YandexFleetParkEntity } from './yandex-fleet/yandex-park.entity';
+import { YandexFleetSyncStateEntity } from './yandex-fleet/yandex-fleet-sync-state.entity';
 
 dotenv.config();
 
@@ -56,6 +57,7 @@ function initServices(database: DataSource): void {
   const yandexFleetProfileRepository = database.getRepository(YandexFleetProfileEntity);
   const yandexFleetWorkRulesRepository = database.getRepository(YandexFleetWorkRuleEntity);
   const yandexFleetOrderRepository = database.getRepository(YandexFleetOrderEntity);
+  const yandexFleetsyncStateRepository = database.getRepository(YandexFleetSyncStateEntity);
   yandexFleetParkRepository = database.getRepository(YandexFleetParkEntity);
 
   container.add(YandexFleetService, () => new YandexFleetService());
@@ -80,6 +82,7 @@ function initServices(database: DataSource): void {
         container.get(YandexFleetOrderService),
         yandexFleetProfileRepository,
         yandexFleetOrderRepository,
+        yandexFleetsyncStateRepository,
       ),
   );
   container.add(
@@ -102,7 +105,11 @@ function initServices(database: DataSource): void {
   container.add(
     YandexFleetOrderService,
     () =>
-      new YandexFleetOrderService(yandexFleetOrderRepository, container.get(YandexFleetService)),
+      new YandexFleetOrderService(
+        yandexFleetOrderRepository,
+        yandexFleetsyncStateRepository,
+        container.get(YandexFleetService),
+      ),
   );
   container.add(
     YandexFleetSheetExportService,
@@ -175,9 +182,15 @@ function scheduleParksProfilesSync() {
     }
   };
 
-  cron.schedule('*/5 * * * *', () => queue.enqueue('new', () => runSync('new')));
-  cron.schedule('0 */1 * * *', () => queue.enqueue('stages', () => runSync('stages')));
-  cron.schedule('0 */2 * * *', () => queue.enqueue('existing', () => runSync('existing')));
+  cron.schedule('*/5 * * * *', () => queue.enqueue('new', () => runSync('new')), {
+    runOnInit: false,
+  });
+  cron.schedule('0 */1 * * *', () => queue.enqueue('stages', () => runSync('stages')), {
+    runOnInit: false,
+  });
+  cron.schedule('0 */2 * * *', () => queue.enqueue('existing', () => runSync('existing')), {
+    runOnInit: false,
+  });
 }
 
 function scheduleParksOrdersSync() {
@@ -193,7 +206,7 @@ function scheduleParksOrdersSync() {
           await yandexFleetOrderService.syncParkOrders(park);
         }
       }),
-    { timezone: 'Asia/Vladivostok' },
+    { timezone: 'Asia/Vladivostok', runOnInit: true },
   );
 }
 
