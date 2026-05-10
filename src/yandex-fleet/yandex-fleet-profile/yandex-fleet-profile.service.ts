@@ -184,6 +184,7 @@ export class YandexFleetProfileService {
             });
 
             const nextStage = this.yandexFleetOrderService.resolveNextStage(
+              park,
               lastOrders,
               profile.hiredAt ?? profile.fleetCreatedAt,
             );
@@ -271,8 +272,8 @@ export class YandexFleetProfileService {
       [BITRIX_FIELDS.PATRONYMIC_DISP]: middleName,
       [BITRIX_FIELDS.PHONE_DISP]: phone,
       [BITRIX_FIELDS.PHONE_SYSTEM]: phone,
-      [BITRIX_FIELDS.VACANCY]: mapVacancy(driverCar),
-      [BITRIX_FIELDS.CONTRACTOR_TYPE]: mapContractorType(driverCar),
+      [BITRIX_FIELDS.VACANCY]: mapVacancy(park, driverCar),
+      [BITRIX_FIELDS.CONTRACTOR_TYPE]: mapContractorType(park, driverCar),
       [BITRIX_FIELDS.AGGREGATOR]: mapAggregator(park.type),
       [BITRIX_FIELDS.HIRE_DATE]: formatDateForBitrix(profile.hire_date),
       CATEGORY_ID: mapCategory(park.type),
@@ -518,6 +519,7 @@ export class YandexFleetProfileService {
       ? new Date(driverProfile.profile.hire_date)
       : null;
     const nextStage = this.yandexFleetOrderService.resolveNextStage(
+      park,
       lastOrders,
       hireDate ?? createdDate,
     );

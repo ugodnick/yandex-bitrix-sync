@@ -1,6 +1,6 @@
 import { Repository } from 'typeorm';
 import { YandexFleetService } from '../yandex-fleet.service';
-import { BITRIX_CATEGORY_STAGE, BitrixDealCategory } from '../../bitrix/bitrix.type';
+import { BITRIX_CATEGORY_STAGE } from '../../bitrix/bitrix.type';
 import { YandexFleetOrder } from '../yandex-fleet.type';
 import { YandexFleetOrderEntity } from './yandex-fleet-order.entity';
 import { YandexFleetParkEntity } from '../yandex-park.entity';
@@ -9,6 +9,7 @@ import {
   YandexFleetSyncType,
   YandexFleetSyncStatus,
 } from '../yandex-fleet-sync-state.entity';
+import { getBitrixCategory } from '../../bitrix/bitrix.utils';
 
 export class YandexFleetOrderService {
   constructor(
@@ -17,8 +18,12 @@ export class YandexFleetOrderService {
     private readonly yandexFleetService: YandexFleetService,
   ) {}
 
-  public resolveNextStage(orders: YandexFleetOrderEntity[], hiredAt: Date): string | null {
-    const stages = BITRIX_CATEGORY_STAGE[BitrixDealCategory.YANDEX_DELIVERY];
+  public resolveNextStage(
+    park: YandexFleetParkEntity,
+    orders: YandexFleetOrderEntity[],
+    hiredAt: Date,
+  ): string | null {
+    const stages = getBitrixCategory(park.type);
 
     const activityStage = this.resolveActivityStage(orders, hiredAt, stages);
     if (activityStage) return activityStage;
@@ -32,7 +37,7 @@ export class YandexFleetOrderService {
   private resolveActivityStage(
     orders: YandexFleetOrderEntity[],
     hiredAt: Date,
-    stages: (typeof BITRIX_CATEGORY_STAGE)[BitrixDealCategory.YANDEX_DELIVERY],
+    stages: (typeof BITRIX_CATEGORY_STAGE)[keyof typeof BITRIX_CATEGORY_STAGE],
   ): string | null {
     const now = new Date();
 
