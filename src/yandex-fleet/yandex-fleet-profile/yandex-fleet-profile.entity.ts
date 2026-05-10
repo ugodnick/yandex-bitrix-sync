@@ -107,7 +107,7 @@ export class YandexFleetProfileEntity {
   createAt: Date;
 
   @ManyToOne(() => YandexFleetParkEntity, (park) => park.profiles)
-  @JoinColumn({ name: 'park_id', referencedColumnName: 'yandexParkId' })
+  @JoinColumn({ name: 'park_id', referencedColumnName: 'id' })
   park: YandexFleetParkEntity;
 
   @OneToMany(() => YandexFleetOrderEntity, (order) => order.profile)

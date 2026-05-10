@@ -61,6 +61,6 @@ export class YandexFleetOrderEntity {
   profile: YandexFleetProfileEntity;
 
   @ManyToOne(() => YandexFleetParkEntity, (park) => park.orders)
-  @JoinColumn({ name: 'park_id', referencedColumnName: 'yandexParkId' })
+  @JoinColumn({ name: 'park_id', referencedColumnName: 'id' })
   park: YandexFleetParkEntity;
 }
