@@ -82,9 +82,27 @@ export class YandexFleetProfileService {
 
     const fallback = new Date('2025-01-01T00:00:00Z');
 
-    const from = state?.lastSyncedTo
-      ? new Date(state.lastSyncedTo.getTime() - bufferOverlap)
-      : fallback;
+    let from: Date;
+
+    if (newOnly) {
+      const existingState = await this.syncStateRepository.findOne({
+        where: { parkId: park.id, syncType: YandexFleetSyncType.ProfilesExisting },
+      });
+
+      if (!existingState?.lastSyncedTo) {
+        console.log(
+          `[YandexFleetProfileService] Пропуск ${park.name}: existing синхронизация ещё не завершалась.`,
+        );
+        return;
+      }
+
+      const referenceDate = state?.lastSyncedTo ?? existingState.lastSyncedTo;
+      from = new Date(referenceDate.getTime() - bufferOverlap);
+    } else {
+      from = state?.lastSyncedTo
+        ? new Date(state.lastSyncedTo.getTime() - bufferOverlap)
+        : fallback;
+    }
 
     state = await this.syncStateRepository.save({
       ...(state ?? {}),
