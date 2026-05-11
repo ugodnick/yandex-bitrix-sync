@@ -20,7 +20,7 @@ import {
   YandexFleetEmployment,
 } from '../yandex-fleet/yandex-fleet.type';
 import axios from 'axios';
-import { YandexFleetParkType } from '../yandex-fleet/yandex-park.entity';
+import { YandexFleetParkType } from '../yandex-fleet/yandex-fleet-park/yandex-park.entity';
 
 const BITRIX_COLOR_TO_YANDEX: Record<number, VehicleColor> = {
   [BITRIX_DICT.COLOR.WHITE]: VehicleColor.White,

@@ -9,7 +9,7 @@ import {
   CreateDateColumn,
 } from 'typeorm';
 import { utcDateTimeTransformer } from './yandex-fleet-profile/yandex-fleet-profile.entity';
-import { YandexFleetParkEntity } from './yandex-park.entity';
+import { YandexFleetParkEntity } from './yandex-fleet-park/yandex-park.entity';
 
 export enum YandexFleetSyncType {
   Orders = 'orders',

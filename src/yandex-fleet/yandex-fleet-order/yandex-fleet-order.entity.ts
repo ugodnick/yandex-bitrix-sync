@@ -5,12 +5,14 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryColumn,
   UpdateDateColumn,
 } from 'typeorm';
 import { OrderStatus } from '../yandex-fleet.type';
 import { YandexFleetProfileEntity } from '../yandex-fleet-profile/yandex-fleet-profile.entity';
-import { YandexFleetParkEntity } from '../yandex-park.entity';
+import { YandexFleetParkEntity } from '../yandex-fleet-park/yandex-park.entity';
+import { YandexFleetTransactionEntity } from '../yandex-fleet-transaction/yandex-fleet-transaction.entity';
 
 export const utcDateTimeTransformer = {
   to: (value: Date | null | undefined) => {
@@ -63,4 +65,7 @@ export class YandexFleetOrderEntity {
   @ManyToOne(() => YandexFleetParkEntity, (park) => park.orders)
   @JoinColumn({ name: 'park_id', referencedColumnName: 'id' })
   park: YandexFleetParkEntity;
+
+  @OneToMany(() => YandexFleetTransactionEntity, (tx) => tx.order)
+  transactions: YandexFleetTransactionEntity[];
 }

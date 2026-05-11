@@ -32,7 +32,7 @@ import {
 import { BitrixService } from './bitrix.service';
 import { Repository } from 'typeorm';
 import { YandexFleetProfileEntity } from '../yandex-fleet/yandex-fleet-profile/yandex-fleet-profile.entity';
-import { YandexFleetParkEntity } from '../yandex-fleet/yandex-park.entity';
+import { YandexFleetParkEntity } from '../yandex-fleet/yandex-fleet-park/yandex-park.entity';
 
 export class BitrixWebhookService {
   constructor(

@@ -3,6 +3,7 @@ export enum SheetName {
   Orders = 'Заказы',
   SupplyHoursMonth = 'Время на линии месяц',
   SupplyWeekMonth = 'Время на линии неделя',
+  Transactions = 'Транзакции',
 }
 
 export enum ContractorsColumn {
@@ -26,6 +27,19 @@ export enum OrdersColumn {
   OrderDate = 'Дата заказа (UTC+10)',
   Status = 'Статус',
   Price = 'Стоимость заказа',
+  Bonus = 'Сумма бонусов',
+  Id = 'ID заказа',
+  Park = 'Парк',
+}
+
+export enum TransactionsColumn {
+  Id = 'ID транзакции',
+  ProfileId = 'ID профиля',
+  OrderId = 'ID заказа',
+  CategoryName = 'Категория',
+  Amount = 'Сумма',
+  Date = 'Дата (UTC+10)',
+  Park = 'Парк',
 }
 
 export enum SupplyHoursMonthColumn {
@@ -43,6 +57,7 @@ export type SheetColumnsMap = {
   [SheetName.Orders]: OrdersColumn;
   [SheetName.SupplyHoursMonth]: SupplyHoursMonthColumn;
   [SheetName.SupplyWeekMonth]: SupplyWeekMonthColumn;
+  [SheetName.Transactions]: TransactionsColumn;
 };
 
 export const SHEET_COLUMN_ORDER: {
@@ -68,6 +83,9 @@ export const SHEET_COLUMN_ORDER: {
     OrdersColumn.OrderDate,
     OrdersColumn.Status,
     OrdersColumn.Price,
+    OrdersColumn.Bonus,
+    OrdersColumn.Id,
+    OrdersColumn.Park,
   ],
   [SheetName.SupplyHoursMonth]: [
     SupplyHoursMonthColumn.ContractorId,
@@ -76,6 +94,15 @@ export const SHEET_COLUMN_ORDER: {
   [SheetName.SupplyWeekMonth]: [
     SupplyWeekMonthColumn.ContractorId,
     SupplyWeekMonthColumn.SupplyHours,
+  ],
+  [SheetName.Transactions]: [
+    TransactionsColumn.Id,
+    TransactionsColumn.ProfileId,
+    TransactionsColumn.OrderId,
+    TransactionsColumn.CategoryName,
+    TransactionsColumn.Amount,
+    TransactionsColumn.Date,
+    TransactionsColumn.Park,
   ],
 };
 

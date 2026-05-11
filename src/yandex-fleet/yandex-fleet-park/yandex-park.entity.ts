@@ -1,7 +1,7 @@
 import { PrimaryColumn, Column, UpdateDateColumn, CreateDateColumn, OneToMany } from 'typeorm';
 import { Entity } from 'typeorm/decorator/entity/Entity';
-import { YandexFleetOrderEntity } from './yandex-fleet-order/yandex-fleet-order.entity';
-import { YandexFleetProfileEntity } from './yandex-fleet-profile/yandex-fleet-profile.entity';
+import { YandexFleetOrderEntity } from '../yandex-fleet-order/yandex-fleet-order.entity';
+import { YandexFleetProfileEntity } from '../yandex-fleet-profile/yandex-fleet-profile.entity';
 
 export enum YandexFleetParkType {
   Delivery = 'delivery',

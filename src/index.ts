@@ -15,13 +15,15 @@ import { YandexFleetWorkRuleService } from './yandex-fleet/yandex-fleet-work-rul
 import { YandexFleetOrderService } from './yandex-fleet/yandex-fleet-order/yandex-fleet-order.service';
 import { BitrixWebhookService } from './bitrix/bitrix-webhook.service';
 import { GoogleSheetsAPIService } from './google-sheet/google-sheet.service';
-import { YandexFleetSheetExportService } from './yandex-fleet/yandex-fleet-profile/yandex-fleet-sheet-export.service';
+import { YandexFleetSheetExportService } from './yandex-fleet/yandex-fleet-sheet-export.service';
 import { join } from 'path';
 import { YandexFleetOrderEntity } from './yandex-fleet/yandex-fleet-order/yandex-fleet-order.entity';
 import { DataSource, Repository } from 'typeorm';
 import { Queue } from './queue';
-import { YandexFleetParkEntity } from './yandex-fleet/yandex-park.entity';
+import { YandexFleetParkEntity } from './yandex-fleet/yandex-fleet-park/yandex-park.entity';
 import { YandexFleetSyncStateEntity } from './yandex-fleet/yandex-fleet-sync-state.entity';
+import { YandexFleetTransactionService } from './yandex-fleet/yandex-fleet-transaction/yandex-fleet-transaction.service';
+import { YandexFleetTransactionEntity } from './yandex-fleet/yandex-fleet-transaction/yandex-fleet-transaction.entity';
 
 dotenv.config();
 
@@ -58,6 +60,7 @@ function initServices(database: DataSource): void {
   const yandexFleetWorkRulesRepository = database.getRepository(YandexFleetWorkRuleEntity);
   const yandexFleetOrderRepository = database.getRepository(YandexFleetOrderEntity);
   const yandexFleetsyncStateRepository = database.getRepository(YandexFleetSyncStateEntity);
+  const yandexFleetTransactionRepository = database.getRepository(YandexFleetTransactionEntity);
   yandexFleetParkRepository = database.getRepository(YandexFleetParkEntity);
 
   container.add(YandexFleetService, () => new YandexFleetService());
@@ -111,6 +114,16 @@ function initServices(database: DataSource): void {
         container.get(YandexFleetService),
       ),
   );
+
+  container.add(
+    YandexFleetTransactionService,
+    () =>
+      new YandexFleetTransactionService(
+        yandexFleetTransactionRepository,
+        yandexFleetsyncStateRepository,
+        container.get(YandexFleetService),
+      ),
+  );
   container.add(
     YandexFleetSheetExportService,
     () =>
@@ -119,6 +132,7 @@ function initServices(database: DataSource): void {
         yandexFleetWorkRulesRepository,
         yandexFleetOrderRepository,
         yandexFleetParkRepository,
+        yandexFleetTransactionRepository,
         container.get(GoogleSheetsAPIService),
         container.get(YandexFleetService),
       ),
@@ -201,9 +215,11 @@ function scheduleParksOrdersSync() {
     () =>
       queue.enqueue('orders', async () => {
         const yandexFleetOrderService = container.get(YandexFleetOrderService);
+        const yandexFleetTransactionService = container.get(YandexFleetTransactionService);
         const parks = await getActiveParks();
         for (const park of parks) {
           await yandexFleetOrderService.syncParkOrders(park);
+          await yandexFleetTransactionService.syncParkTransactions(park);
         }
       }),
     { timezone: 'Asia/Vladivostok', runOnInit: true },

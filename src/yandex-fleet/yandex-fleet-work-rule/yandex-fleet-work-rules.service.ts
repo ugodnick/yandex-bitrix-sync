@@ -1,7 +1,7 @@
 import { YandexFleetService } from '../yandex-fleet.service';
 import { Repository } from 'typeorm';
 import { YandexFleetWorkRuleEntity } from './yandex-fleet-work-rule.entity';
-import { YandexFleetParkEntity } from '../yandex-park.entity';
+import { YandexFleetParkEntity } from '../yandex-fleet-park/yandex-park.entity';
 
 export class YandexFleetWorkRuleService {
   constructor(

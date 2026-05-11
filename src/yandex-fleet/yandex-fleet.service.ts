@@ -11,7 +11,8 @@ import {
   YandexFleetSupplyHours,
 } from './yandex-fleet.type';
 import yandexApiClient from './yandex-fleet.client';
-import { YandexFleetParkEntity } from './yandex-park.entity';
+import { YandexFleetParkEntity } from './yandex-fleet-park/yandex-park.entity';
+import { YandexFleetTransactionsResponse } from './yandex-fleet-transaction/yandex-fleet-transaction.type';
 
 export class YandexFleetService {
   private client: AxiosInstance = yandexApiClient;
@@ -196,6 +197,31 @@ export class YandexFleetService {
     } catch (error: unknown) {
       this.handleError(error);
     }
+  }
+
+  async getTransactionsPage(
+    park: YandexFleetParkEntity,
+    from: Date,
+    to: Date,
+    cursor?: string,
+  ): Promise<YandexFleetTransactionsResponse> {
+    const response = await this.client.post<YandexFleetTransactionsResponse>(
+      '/v2/parks/transactions/list',
+      {
+        query: {
+          park: {
+            id: park.id,
+            transaction: {
+              event_at: { from: from.toISOString(), to: to.toISOString() },
+            },
+          },
+        },
+        limit: 1000,
+        ...(cursor ? { cursor } : {}),
+      },
+      { headers: this.getParkHeaders(park) },
+    );
+    return response.data;
   }
 
   private getParkHeaders(park: YandexFleetParkEntity) {

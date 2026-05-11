@@ -9,7 +9,7 @@ import {
   ManyToOne,
 } from 'typeorm';
 import { YandexFleetOrderEntity } from '../yandex-fleet-order/yandex-fleet-order.entity';
-import { YandexFleetParkEntity } from '../yandex-park.entity';
+import { YandexFleetParkEntity } from '../yandex-fleet-park/yandex-park.entity';
 
 export const utcDateTimeTransformer = {
   to: (value: Date | null | undefined) => {

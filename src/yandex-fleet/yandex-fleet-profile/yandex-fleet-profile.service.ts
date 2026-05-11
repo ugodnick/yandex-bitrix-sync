@@ -37,7 +37,7 @@ import {
 import { getBitrixCategory } from '../../bitrix/bitrix.utils';
 import { YandexFleetOrderService } from '../yandex-fleet-order/yandex-fleet-order.service';
 import { YandexFleetOrderEntity } from '../yandex-fleet-order/yandex-fleet-order.entity';
-import { YandexFleetParkEntity } from '../yandex-park.entity';
+import { YandexFleetParkEntity } from '../yandex-fleet-park/yandex-park.entity';
 import {
   YandexFleetSyncStateEntity,
   YandexFleetSyncStatus,

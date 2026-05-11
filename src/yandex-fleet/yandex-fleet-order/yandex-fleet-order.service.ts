@@ -3,7 +3,7 @@ import { YandexFleetService } from '../yandex-fleet.service';
 import { BITRIX_CATEGORY_STAGE } from '../../bitrix/bitrix.type';
 import { YandexFleetOrder } from '../yandex-fleet.type';
 import { YandexFleetOrderEntity } from './yandex-fleet-order.entity';
-import { YandexFleetParkEntity } from '../yandex-park.entity';
+import { YandexFleetParkEntity } from '../yandex-fleet-park/yandex-park.entity';
 import {
   YandexFleetSyncStateEntity,
   YandexFleetSyncType,

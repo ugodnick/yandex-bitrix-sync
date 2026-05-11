@@ -10,7 +10,7 @@ import {
   YandexFleetVehicleData,
 } from './yandex-fleet.type';
 import crypto from 'crypto';
-import { YandexFleetParkEntity, YandexFleetParkType } from './yandex-park.entity';
+import { YandexFleetParkEntity, YandexFleetParkType } from './yandex-fleet-park/yandex-park.entity';
 import { getBitrixCategory } from '../bitrix/bitrix.utils';
 
 export const mapYandexColorToBitrix = (color?: VehicleColor): number | undefined => {
