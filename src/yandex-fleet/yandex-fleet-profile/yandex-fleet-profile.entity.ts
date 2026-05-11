@@ -7,14 +7,20 @@ import {
   OneToMany,
   JoinColumn,
   ManyToOne,
+  FindOperator,
 } from 'typeorm';
 import { YandexFleetOrderEntity } from '../yandex-fleet-order/yandex-fleet-order.entity';
 import { YandexFleetParkEntity } from '../yandex-fleet-park/yandex-park.entity';
 
 export const utcDateTimeTransformer = {
-  to: (value: Date | null | undefined) => {
+  to: (value: Date | FindOperator<Date> | null | undefined): any => {
     if (!value) return value;
-    return value.toISOString();
+    if (typeof value === 'string') return value;
+    if (value instanceof FindOperator) {
+      return value;
+    }
+    if (value instanceof Date) return value.toISOString();
+    return value;
   },
   from: (value: string | null) => {
     if (!value) return value;
