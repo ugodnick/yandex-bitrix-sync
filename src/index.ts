@@ -143,7 +143,7 @@ function scheduleGoogleSheetExport() {
   const queue = new Queue('scheduleGoogleSheetExport');
 
   cron.schedule(
-    '0 */1 * * *',
+    '55 */1 * * *',
     () =>
       queue.enqueue('export', async () => {
         const exportService = container.get(YandexFleetSheetExportService);
@@ -199,7 +199,7 @@ function scheduleParksProfilesSync() {
   cron.schedule('*/5 * * * *', () => queue.enqueue('new', () => runSync('new')), {
     runOnInit: false,
   });
-  cron.schedule('0 */1 * * *', () => queue.enqueue('stages', () => runSync('stages')), {
+  cron.schedule('40 */1 * * *', () => queue.enqueue('stages', () => runSync('stages')), {
     runOnInit: false,
   });
   cron.schedule('0 */2 * * *', () => queue.enqueue('existing', () => runSync('existing')), {
@@ -211,7 +211,7 @@ function scheduleParksOrdersSync() {
   const queue = new Queue('scheduleParksOrdersSync');
 
   cron.schedule(
-    '0 */1 * * *',
+    '30 */1 * * *',
     () =>
       queue.enqueue('orders', async () => {
         const yandexFleetOrderService = container.get(YandexFleetOrderService);

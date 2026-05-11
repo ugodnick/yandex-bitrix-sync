@@ -26,8 +26,8 @@ export enum OrdersColumn {
   ContractorId = 'ID исполнителя',
   OrderDate = 'Дата заказа (UTC+10)',
   Status = 'Статус',
-  Price = 'Стоимость заказа',
-  Bonus = 'Сумма бонусов',
+  Price = 'Стоимость заказа (RUB)',
+  Bonus = 'Сумма бонусов (RUB)',
   Id = 'ID заказа',
   Park = 'Парк',
 }
@@ -37,7 +37,7 @@ export enum TransactionsColumn {
   ProfileId = 'ID профиля',
   OrderId = 'ID заказа',
   CategoryName = 'Категория',
-  Amount = 'Сумма',
+  Amount = 'Сумма (RUB)',
   Date = 'Дата (UTC+10)',
   Park = 'Парк',
 }

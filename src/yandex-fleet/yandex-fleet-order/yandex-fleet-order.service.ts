@@ -58,7 +58,7 @@ export class YandexFleetOrderService {
 
   async syncParkOrders(park: YandexFleetParkEntity): Promise<void> {
     const startedAt = new Date();
-    const bufferOverlap = 60 * 60 * 1000;
+    const bufferOverlap = 12 * 60 * 60 * 1000;
     const fallback = new Date('2025-01-01T00:00:00Z');
 
     let state = await this.syncStateRepository.findOne({

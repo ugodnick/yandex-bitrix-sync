@@ -13,7 +13,7 @@ import { YandexFleetOrderEntity } from '../yandex-fleet-order/yandex-fleet-order
 import { YandexFleetParkEntity } from '../yandex-fleet-park/yandex-park.entity';
 
 export const utcDateTimeTransformer = {
-  to: (value: Date | FindOperator<Date> | null | undefined): any => {
+  to: (value: Date | FindOperator<Date> | null | undefined) => {
     if (!value) return value;
     if (typeof value === 'string') return value;
     if (value instanceof FindOperator) {

@@ -20,7 +20,7 @@ export class YandexFleetTransactionService {
 
   async syncParkTransactions(park: YandexFleetParkEntity): Promise<void> {
     const startedAt = new Date();
-    const bufferOverlap = 60 * 60 * 1000;
+    const bufferOverlap = 12 * 60 * 60 * 1000;
     const fallback = new Date();
     fallback.setDate(fallback.getDate() - RETENTION_DAYS);
 
@@ -83,7 +83,7 @@ export class YandexFleetTransactionService {
       );
 
       const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - RETENTION_DAYS);
+      cutoff.setDate(cutoff.getDate() - RETENTION_DAYS + 1);
 
       const deleteResult = await this.yandexFleetTransactionRepository.delete({
         parkId: park.id,
