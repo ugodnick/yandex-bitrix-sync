@@ -26,13 +26,13 @@ import {
   BITRIX_FIELDS,
   BitrixContactFields,
   BitrixCrmWebhookBody,
-  BitrixDealCategory,
   BitrixDealFields,
 } from './bitrix.type';
 import { BitrixService } from './bitrix.service';
 import { Repository } from 'typeorm';
 import { YandexFleetProfileEntity } from '../yandex-fleet/yandex-fleet-profile/yandex-fleet-profile.entity';
 import { YandexFleetParkEntity } from '../yandex-fleet/yandex-fleet-park/yandex-park.entity';
+import { YandexFleetProfileService } from '../yandex-fleet/yandex-fleet-profile/yandex-fleet-profile.service';
 
 export class BitrixWebhookService {
   constructor(
@@ -40,6 +40,7 @@ export class BitrixWebhookService {
     private yandexFleetParkRepository: Repository<YandexFleetParkEntity>,
     private yandexFleetService: YandexFleetService,
     private bitrixService: BitrixService,
+    private yandexFleetProfileService: YandexFleetProfileService,
   ) {}
 
   async handleInboundWebhook(webhookBody: BitrixCrmWebhookBody): Promise<void> {
@@ -59,10 +60,6 @@ export class BitrixWebhookService {
 
   private async syncDealToYandex(dealId: string): Promise<void> {
     const deal = await this.bitrixService.getDeal(dealId);
-
-    const dealCategory = deal.CATEGORY_ID;
-
-    if (!dealCategory || dealCategory !== BitrixDealCategory.YANDEX_DELIVERY) return;
 
     const contactId = deal.CONTACT_ID;
     if (!contactId) return;
@@ -92,8 +89,9 @@ export class BitrixWebhookService {
       where: { yandexProfileId },
     });
 
+    const category = getBitrixCategory(park.type);
+
     if (localProfile && localProfile.dataHash !== calculateDriverHash(deal, contactData)) {
-      const category = getBitrixCategory(park.type);
       const stagesToSkip: readonly string[] = [category.Archive, category.Refusal];
 
       if (
@@ -120,7 +118,30 @@ export class BitrixWebhookService {
         await this.yandexFleetService.updateProfile(park, yandexProfileId, updatedProfile);
       }
 
-      await this.saveLocalState(yandexProfileId, park.id, contactId, dealId, deal, contactData);
+      const skippedStages: readonly string[] = [
+        category.Duplicates,
+        category.Refusal,
+        category.SpamAdvertisingIlliquid,
+      ];
+
+      if (
+        skippedStages.includes(localProfile.bitrixStageId) &&
+        localProfile.bitrixStageId !== deal.STAGE_ID
+      ) {
+        const drivers = await this.yandexFleetService.getProfiles(
+          park,
+          1,
+          0,
+          new Date('2025-01-01T00:00:00Z'),
+          [localProfile.yandexProfileId],
+        );
+
+        if (!drivers.driver_profiles[0]) return;
+        const driver = drivers.driver_profiles[0];
+        await this.yandexFleetProfileService.processYandexProfile(park, driver, false);
+      } else {
+        await this.saveLocalState(yandexProfileId, park.id, contactId, dealId, deal, contactData);
+      }
     }
   }
 

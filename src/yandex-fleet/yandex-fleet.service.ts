@@ -51,31 +51,36 @@ export class YandexFleetService {
     limit: number = 100,
     offset: number = 0,
     from: Date,
+    ids: string[] = [],
   ): Promise<YandexDriverProfileResponse> {
+    const data = {
+      query: {
+        park: {
+          id: park.id,
+          updated_at: {
+            from: from.toISOString(),
+          },
+          driver_profile: undefined as { ids?: string[] } | undefined,
+        },
+      },
+      fields: {
+        account: [],
+        car: ['id'],
+        driver_profile: ['id', 'phones', 'work_status', 'hire_date', 'created_date'],
+        park: [],
+      },
+      limit,
+      offset,
+    };
+
+    if (ids.length > 0) {
+      data.query.park.driver_profile = { ids };
+    }
+
     try {
       const response = await this.client.post<YandexDriverProfileResponse>(
         '/v1/parks/driver-profiles/list',
-        {
-          query: {
-            park: {
-              id: park.id,
-              updated_at: {
-                from: from.toISOString(),
-              },
-              // driver_profile: {
-              //   id: [],
-              // },
-            },
-          },
-          fields: {
-            account: [],
-            car: ['id'],
-            driver_profile: ['id', 'phones', 'work_status', 'hire_date', 'created_date'],
-            park: [],
-          },
-          limit,
-          offset,
-        },
+        data,
         { headers: this.getParkHeaders(park) },
       );
 

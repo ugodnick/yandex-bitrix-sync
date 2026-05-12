@@ -464,7 +464,7 @@ export class YandexFleetProfileService {
     );
   }
 
-  private async processYandexProfile(
+  async processYandexProfile(
     park: YandexFleetParkEntity,
     driver: YandexFleetDriverProfileItem,
     newOnly: boolean,
@@ -480,7 +480,6 @@ export class YandexFleetProfileService {
       category.Duplicates,
       category.Refusal,
       category.SpamAdvertisingIlliquid,
-      category.Pause,
     ];
     if (localState && stagesToSkip.includes(localState.bitrixStageId)) return;
 

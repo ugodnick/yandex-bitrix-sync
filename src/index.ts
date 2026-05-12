@@ -73,6 +73,7 @@ function initServices(database: DataSource): void {
         yandexFleetParkRepository,
         container.get(YandexFleetService),
         container.get(BitrixService),
+        container.get(YandexFleetProfileService),
       ),
   );
 
@@ -202,7 +203,7 @@ function scheduleParksProfilesSync() {
   cron.schedule('40 */1 * * *', () => queue.enqueue('stages', () => runSync('stages')), {
     runOnInit: false,
   });
-  cron.schedule('0 */2 * * *', () => queue.enqueue('existing', () => runSync('existing')), {
+  cron.schedule('0 */1 * * *', () => queue.enqueue('existing', () => runSync('existing')), {
     runOnInit: false,
   });
 }
@@ -222,7 +223,7 @@ function scheduleParksOrdersSync() {
           await yandexFleetTransactionService.syncParkTransactions(park);
         }
       }),
-    { timezone: 'Asia/Vladivostok', runOnInit: true },
+    { timezone: 'Asia/Vladivostok', runOnInit: false },
   );
 }
 
