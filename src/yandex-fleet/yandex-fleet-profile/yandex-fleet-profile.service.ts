@@ -676,7 +676,11 @@ export class YandexFleetProfileService {
     if (!best) return { kind: 'none' };
 
     const { contact, deals } = best;
-    const candidateDeals = deals.filter((d) => d.STAGE_ID !== category.Duplicates);
+    const expectedCategoryId = mapCategory(park.type);
+    const candidateDeals = deals.filter(
+      (d) =>
+        String(d.CATEGORY_ID) === String(expectedCategoryId) && d.STAGE_ID !== category.Duplicates,
+    );
 
     const getDispatcherId = (deal: BitrixDealFields): string => {
       const field = deal[BITRIX_FIELDS.DISPATCHER];

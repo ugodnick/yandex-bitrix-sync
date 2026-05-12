@@ -171,7 +171,10 @@ export class BitrixService {
       while (true) {
         const response = await this.client.get('crm.deal.list.json', {
           params: {
-            filter: { CONTACT_ID: contactId, CATEGORY_ID: BitrixDealCategory.YANDEX_DELIVERY },
+            filter: {
+              CONTACT_ID: contactId,
+              CATEGORY_ID: [BitrixDealCategory.YANDEX_DELIVERY, BitrixDealCategory.YANDEX_TAXI],
+            },
             order: { ID: 'DESC' },
             select: ['*', 'UF_*'],
             start,
