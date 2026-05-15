@@ -102,7 +102,8 @@ function initServices(database: DataSource): void {
     () =>
       new GoogleSheetsAPIService({
         keyFilePath: join(__dirname, '..', 'google-sheets-credentials.json'),
-        spreadsheetId: config.googleSheetsSheetId,
+        taxiSpreadsheetId: config.googleSheetsTaxiSheetId,
+        deliverySpreadsheetId: config.googleSheetsDeliverySheetId,
       }),
   );
 
@@ -158,11 +159,12 @@ function scheduleSupplyHoursSync() {
   const queue = new Queue('scheduleSupplyHoursSync');
   const runSync = async (mode: string) => {
     const exportService = container.get(YandexFleetSheetExportService);
+    const parks = await getActiveParks();
 
     if (mode === 'month') {
-      await exportService.exportSupplyHoursMonth();
+      await exportService.exportSupplyHoursMonth(parks);
     } else if (mode === 'week') {
-      await exportService.exportSupplyWeekly();
+      await exportService.exportSupplyWeekly(parks);
     }
   };
   cron.schedule('0 0 5 * *', () => queue.enqueue('month', () => runSync('month')), {

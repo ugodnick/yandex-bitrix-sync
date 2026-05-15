@@ -1,7 +1,7 @@
-import { MoreThan, Repository } from 'typeorm';
+import { In, MoreThan, Repository } from 'typeorm';
 import { YandexFleetProfileEntity } from './yandex-fleet-profile/yandex-fleet-profile.entity';
 import { GoogleSheetsAPIService } from '../google-sheet/google-sheet.service';
-import { SheetName } from '../google-sheet/google-sheet.type';
+import { SheetName, SheetType } from '../google-sheet/google-sheet.type';
 import {
   formatDate,
   formatDateInTz,
@@ -11,7 +11,7 @@ import {
 import { YandexFleetWorkRuleEntity } from './yandex-fleet-work-rule/yandex-fleet-work-rule.entity';
 import { YandexFleetOrderEntity } from './yandex-fleet-order/yandex-fleet-order.entity';
 import { YandexFleetService } from './yandex-fleet.service';
-import { YandexFleetParkEntity } from './yandex-fleet-park/yandex-park.entity';
+import { YandexFleetParkEntity, YandexFleetParkType } from './yandex-fleet-park/yandex-park.entity';
 import Big from 'big.js';
 import { YandexFleetTransactionEntity } from './yandex-fleet-transaction/yandex-fleet-transaction.entity';
 
@@ -28,16 +28,30 @@ export class YandexFleetSheetExportService {
 
   async exportToGoogleSheets(): Promise<void> {
     const parks = await this.yandexFleetParkRepository.find();
+    const taxiParks = parks.filter((p) => p.type === YandexFleetParkType.Taxi);
+    const deliveryParks = parks.filter((p) => p.type === YandexFleetParkType.Delivery);
 
-    await this.exportContractors(parks);
-    await this.exportOrders(parks);
-    await this.exportTransactions(parks);
+    await this.exportContractors(deliveryParks, SheetType.Delivery);
+    await this.exportOrders(deliveryParks, SheetType.Delivery);
+    await this.exportTransactions(deliveryParks, SheetType.Delivery);
 
     const today = formatDateInTz(new Date(), true);
-    await this.googleSheetsApiService.renameSpreadsheet(`Выгрузка Диспетчерской — ${today}`);
+    await this.googleSheetsApiService.renameSpreadsheet(
+      SheetType.Delivery,
+      `Выгрузка Диспетчерской Доставка — ${today}`,
+    );
+
+    await this.exportContractors(taxiParks, SheetType.Taxi);
+    await this.exportOrders(taxiParks, SheetType.Taxi);
+    await this.exportTransactions(taxiParks, SheetType.Taxi);
+
+    await this.googleSheetsApiService.renameSpreadsheet(
+      SheetType.Taxi,
+      `Выгрузка Диспетчерской Такси — ${today}`,
+    );
   }
 
-  private async exportContractors(parks: YandexFleetParkEntity[]) {
+  private async exportContractors(parks: YandexFleetParkEntity[], sheetType: SheetType) {
     const BATCH_SIZE = 500;
     let offset = 0;
     const allRows: string[][] = [];
@@ -46,6 +60,7 @@ export class YandexFleetSheetExportService {
       const profiles = await this.yandexFleetProfileRepository.find({
         take: BATCH_SIZE,
         skip: offset,
+        where: { parkId: In(parks.map((p) => p.id)) },
         order: { fleetCreatedAt: 'DESC' },
       });
       if (profiles.length === 0) break;
@@ -69,9 +84,9 @@ export class YandexFleetSheetExportService {
       offset += BATCH_SIZE;
     }
 
-    await this.googleSheetsApiService.truncateSheet(SheetName.Contractors, 1);
-    await this.googleSheetsApiService.ensureHeaders(SheetName.Contractors);
-    await this.googleSheetsApiService.appendRawRows(SheetName.Contractors, allRows);
+    await this.googleSheetsApiService.truncateSheet(SheetName.Contractors, sheetType, 1);
+    await this.googleSheetsApiService.ensureHeaders(SheetName.Contractors, sheetType);
+    await this.googleSheetsApiService.appendRawRows(SheetName.Contractors, sheetType, allRows);
   }
 
   private profileToRow(
@@ -96,7 +111,7 @@ export class YandexFleetSheetExportService {
     ];
   }
 
-  private async exportOrders(parks: YandexFleetParkEntity[]) {
+  private async exportOrders(parks: YandexFleetParkEntity[], sheetType: SheetType) {
     const BATCH_SIZE = 500;
     let offset = 0;
     const allRows: string[][] = [];
@@ -123,6 +138,7 @@ export class YandexFleetSheetExportService {
           categories: BONUS_TRANSACTION_CATEGORIES,
         })
         .where('order.bookedAt > :from', { from: fourtyFiveDaysAgo })
+        .andWhere('order.parkId IN (:...parkIds)', { parkIds: parks.map((p) => p.id) })
         .orderBy('order.bookedAt', 'DESC')
         .take(BATCH_SIZE)
         .skip(offset)
@@ -145,9 +161,9 @@ export class YandexFleetSheetExportService {
       offset += BATCH_SIZE;
     }
 
-    await this.googleSheetsApiService.truncateSheet(SheetName.Orders, 1);
-    await this.googleSheetsApiService.ensureHeaders(SheetName.Orders);
-    await this.googleSheetsApiService.appendRawRows(SheetName.Orders, allRows);
+    await this.googleSheetsApiService.truncateSheet(SheetName.Orders, sheetType, 1);
+    await this.googleSheetsApiService.ensureHeaders(SheetName.Orders, sheetType);
+    await this.googleSheetsApiService.appendRawRows(SheetName.Orders, sheetType, allRows);
   }
 
   private orderToRow(
@@ -166,7 +182,7 @@ export class YandexFleetSheetExportService {
     ];
   }
 
-  private async exportTransactions(parks: YandexFleetParkEntity[]) {
+  private async exportTransactions(parks: YandexFleetParkEntity[], sheetType: SheetType) {
     const BATCH_SIZE = 500;
     let offset = 0;
     const allRows: string[][] = [];
@@ -179,7 +195,7 @@ export class YandexFleetSheetExportService {
         take: BATCH_SIZE,
         skip: offset,
         order: { eventAt: 'DESC' },
-        where: { eventAt: MoreThan(fourtyFiveDaysAgo) },
+        where: { eventAt: MoreThan(fourtyFiveDaysAgo), parkId: In(parks.map((p) => p.id)) },
       });
 
       if (transactions.length === 0) break;
@@ -194,9 +210,9 @@ export class YandexFleetSheetExportService {
       offset += BATCH_SIZE;
     }
 
-    await this.googleSheetsApiService.truncateSheet(SheetName.Transactions, 1);
-    await this.googleSheetsApiService.ensureHeaders(SheetName.Transactions);
-    await this.googleSheetsApiService.appendRawRows(SheetName.Transactions, allRows);
+    await this.googleSheetsApiService.truncateSheet(SheetName.Transactions, sheetType, 1);
+    await this.googleSheetsApiService.ensureHeaders(SheetName.Transactions, sheetType);
+    await this.googleSheetsApiService.appendRawRows(SheetName.Transactions, sheetType, allRows);
   }
 
   private transactionToRow(
@@ -214,15 +230,28 @@ export class YandexFleetSheetExportService {
     ];
   }
 
-  async exportSupplyHoursMonth(): Promise<void> {
+  async exportSupplyHoursMonth(parks: YandexFleetParkEntity[]): Promise<void> {
     const now = new Date();
     const periodFrom = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const periodTo = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    await this.exportSupplyHours(SheetName.SupplyHoursMonth, periodFrom, periodTo);
+    await this.exportSupplyHours(
+      parks,
+      SheetType.Delivery,
+      SheetName.SupplyHoursMonth,
+      periodFrom,
+      periodTo,
+    );
+    await this.exportSupplyHours(
+      parks,
+      SheetType.Taxi,
+      SheetName.SupplyHoursMonth,
+      periodFrom,
+      periodTo,
+    );
   }
 
-  async exportSupplyWeekly(): Promise<void> {
+  async exportSupplyWeekly(parks: YandexFleetParkEntity[]): Promise<void> {
     const now = new Date();
     const dayOfWeek = now.getDay();
     const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
@@ -234,10 +263,25 @@ export class YandexFleetSheetExportService {
     const periodFrom = new Date(periodTo);
     periodFrom.setDate(periodTo.getDate() - 7);
 
-    await this.exportSupplyHours(SheetName.SupplyWeekMonth, periodFrom, periodTo);
+    await this.exportSupplyHours(
+      parks,
+      SheetType.Delivery,
+      SheetName.SupplyWeekMonth,
+      periodFrom,
+      periodTo,
+    );
+    await this.exportSupplyHours(
+      parks,
+      SheetType.Taxi,
+      SheetName.SupplyWeekMonth,
+      periodFrom,
+      periodTo,
+    );
   }
 
   private async exportSupplyHours(
+    parks: YandexFleetParkEntity[],
+    sheetType: SheetType,
     sheetName: SheetName.SupplyHoursMonth | SheetName.SupplyWeekMonth,
     periodFrom: Date,
     periodTo: Date,
@@ -248,7 +292,7 @@ export class YandexFleetSheetExportService {
 
     while (true) {
       const profiles = await this.yandexFleetProfileRepository.find({
-        where: { lastOrderDate: MoreThan(periodFrom) },
+        where: { lastOrderDate: MoreThan(periodFrom), parkId: In(parks.map((p) => p.id)) },
         order: { yandexProfileId: 'ASC' },
         relations: { park: true },
         take: BATCH_SIZE,
@@ -278,9 +322,9 @@ export class YandexFleetSheetExportService {
       offset += BATCH_SIZE;
     }
 
-    await this.googleSheetsApiService.truncateSheet(sheetName, 1);
-    await this.googleSheetsApiService.ensureHeaders(sheetName);
-    await this.googleSheetsApiService.appendRawRows(sheetName, allRows);
+    await this.googleSheetsApiService.truncateSheet(sheetName, sheetType, 1);
+    await this.googleSheetsApiService.ensureHeaders(sheetName, sheetType);
+    await this.googleSheetsApiService.appendRawRows(sheetName, sheetType, allRows);
 
     console.log(
       `[YandexFleetSheetExportService] Выгружено ${allRows.length} строк в ${sheetName}.`,

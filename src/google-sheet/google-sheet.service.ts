@@ -9,15 +9,17 @@ import {
   SHEET_COLUMN_ORDER,
   SheetName,
   SheetRow,
+  SheetType,
 } from './google-sheet.type';
 
 export class GoogleSheetsAPIService {
   private readonly sheets: sheets_v4.Sheets;
-  private readonly spreadsheetId: string;
+  private readonly deliverySpreadsheetId: string;
+  private readonly taxiSpreadsheetId: string;
   private readonly valueInputOption: 'RAW' | 'USER_ENTERED';
 
   constructor(options: GoogleSheetsAPIServiceOptions) {
-    const { keyFilePath, spreadsheetId } = options;
+    const { keyFilePath, deliverySpreadsheetId, taxiSpreadsheetId } = options;
 
     if (!fs.existsSync(keyFilePath)) {
       throw new Error(`Service account key file not found at: ${path.resolve(keyFilePath)}`);
@@ -29,12 +31,14 @@ export class GoogleSheetsAPIService {
     });
 
     this.sheets = google.sheets({ version: 'v4', auth: auth as unknown as JWT });
-    this.spreadsheetId = spreadsheetId;
+    this.deliverySpreadsheetId = deliverySpreadsheetId;
+    this.taxiSpreadsheetId = taxiSpreadsheetId;
     this.valueInputOption = options.valueInputOption ?? 'RAW';
   }
 
   public async appendRawRows(
     sheet: SheetName,
+    sheetType: SheetType,
     rows: ReadonlyArray<ReadonlyArray<CellValue>>,
   ): Promise<AppendResult> {
     if (rows.length === 0) {
@@ -47,7 +51,7 @@ export class GoogleSheetsAPIService {
     }
 
     const response = await this.sheets.spreadsheets.values.append({
-      spreadsheetId: this.spreadsheetId,
+      spreadsheetId: this.getSpreadsheetId(sheetType),
       range: sheet,
       valueInputOption: this.valueInputOption,
       insertDataOption: 'INSERT_ROWS',
@@ -65,9 +69,9 @@ export class GoogleSheetsAPIService {
     };
   }
 
-  public async renameSpreadsheet(newTitle: string): Promise<void> {
+  public async renameSpreadsheet(sheetType: SheetType, newTitle: string): Promise<void> {
     await this.sheets.spreadsheets.batchUpdate({
-      spreadsheetId: this.spreadsheetId,
+      spreadsheetId: this.getSpreadsheetId(sheetType),
       requestBody: {
         requests: [
           {
@@ -85,6 +89,7 @@ export class GoogleSheetsAPIService {
 
   public async appendRows<S extends SheetName>(
     sheet: S,
+    sheetType: SheetType,
     rows: ReadonlyArray<SheetRow<S>>,
   ): Promise<AppendResult> {
     if (rows.length === 0) {
@@ -104,7 +109,7 @@ export class GoogleSheetsAPIService {
       }),
     );
 
-    return this.appendRawRows(sheet, rawRows);
+    return this.appendRawRows(sheet, sheetType, rawRows);
   }
 
   public async batchAppendRawRows(
@@ -112,6 +117,7 @@ export class GoogleSheetsAPIService {
       sheet: SheetName;
       rows: ReadonlyArray<ReadonlyArray<CellValue>>;
     }>,
+    sheetType: SheetType,
   ): Promise<sheets_v4.Schema$BatchUpdateValuesResponse> {
     const data: sheets_v4.Schema$ValueRange[] = batches
       .filter((b) => b.rows.length > 0)
@@ -121,15 +127,17 @@ export class GoogleSheetsAPIService {
       }));
 
     if (data.length === 0) {
-      return { spreadsheetId: this.spreadsheetId, totalUpdatedCells: 0 };
+      return { spreadsheetId: this.getSpreadsheetId(sheetType), totalUpdatedCells: 0 };
     }
 
     const responses = await Promise.all(
-      batches.filter((b) => b.rows.length > 0).map((b) => this.appendRawRows(b.sheet, b.rows)),
+      batches
+        .filter((b) => b.rows.length > 0)
+        .map((b) => this.appendRawRows(b.sheet, sheetType, b.rows)),
     );
 
     return {
-      spreadsheetId: this.spreadsheetId,
+      spreadsheetId: this.getSpreadsheetId(sheetType),
       totalUpdatedCells: responses.reduce((sum, r) => sum + r.updatedCells, 0),
     };
   }
@@ -137,9 +145,10 @@ export class GoogleSheetsAPIService {
   public async updateRange(
     range: string,
     values: ReadonlyArray<ReadonlyArray<CellValue>>,
+    sheetType: SheetType,
   ): Promise<sheets_v4.Schema$UpdateValuesResponse> {
     const response = await this.sheets.spreadsheets.values.update({
-      spreadsheetId: this.spreadsheetId,
+      spreadsheetId: this.getSpreadsheetId(sheetType),
       range,
       valueInputOption: this.valueInputOption,
       requestBody: {
@@ -150,28 +159,36 @@ export class GoogleSheetsAPIService {
     return response.data;
   }
 
-  public async clearSheet(sheet: SheetName, headerRowCount = 0): Promise<void> {
+  public async clearSheet(
+    sheet: SheetName,
+    sheetType: SheetType,
+    headerRowCount = 0,
+  ): Promise<void> {
     const range = headerRowCount > 0 ? `${sheet}!A${headerRowCount + 1}:ZZ` : `${sheet}`;
 
     await this.sheets.spreadsheets.values.clear({
-      spreadsheetId: this.spreadsheetId,
+      spreadsheetId: this.getSpreadsheetId(sheetType),
       range,
     });
   }
 
-  public async ensureHeaders<S extends SheetName>(sheet: S): Promise<void> {
+  public async ensureHeaders<S extends SheetName>(sheet: S, sheetType: SheetType): Promise<void> {
     const columnOrder = SHEET_COLUMN_ORDER[sheet];
     const lastColLetter = GoogleSheetsAPIService.columnIndexToLetter(columnOrder.length);
     const range = `${sheet}!A1:${lastColLetter}1`;
 
-    await this.updateRange(range, [columnOrder.map((c) => String(c))]);
+    await this.updateRange(range, [columnOrder.map((c) => String(c))], sheetType);
   }
 
-  public async readAll(sheet: SheetName, headerRowCount = 0): Promise<CellValue[][]> {
+  public async readAll(
+    sheet: SheetName,
+    sheetType: SheetType,
+    headerRowCount = 0,
+  ): Promise<CellValue[][]> {
     const range = headerRowCount > 0 ? `${sheet}!A${headerRowCount + 1}:ZZ` : `${sheet}`;
 
     const response = await this.sheets.spreadsheets.values.get({
-      spreadsheetId: this.spreadsheetId,
+      spreadsheetId: this.getSpreadsheetId(sheetType),
       range,
     });
 
@@ -189,9 +206,13 @@ export class GoogleSheetsAPIService {
     return result;
   }
 
-  public async truncateSheet(sheet: SheetName, keepHeaderRows = 1): Promise<void> {
+  public async truncateSheet(
+    sheet: SheetName,
+    sheetType: SheetType,
+    keepHeaderRows = 1,
+  ): Promise<void> {
     const meta = await this.sheets.spreadsheets.get({
-      spreadsheetId: this.spreadsheetId,
+      spreadsheetId: this.getSpreadsheetId(sheetType),
       fields: 'sheets(properties(sheetId,title,gridProperties))',
     });
 
@@ -206,7 +227,7 @@ export class GoogleSheetsAPIService {
     if (rowCount <= keepHeaderRows) return;
 
     await this.sheets.spreadsheets.batchUpdate({
-      spreadsheetId: this.spreadsheetId,
+      spreadsheetId: this.getSpreadsheetId(sheetType),
       requestBody: {
         requests: [
           {
@@ -222,5 +243,9 @@ export class GoogleSheetsAPIService {
         ],
       },
     });
+  }
+
+  private getSpreadsheetId(sheet: SheetType): string {
+    return sheet === SheetType.Delivery ? this.deliverySpreadsheetId : this.taxiSpreadsheetId;
   }
 }

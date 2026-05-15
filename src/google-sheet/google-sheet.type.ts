@@ -6,6 +6,11 @@ export enum SheetName {
   Transactions = 'Транзакции',
 }
 
+export enum SheetType {
+  Delivery = 'delivery',
+  Taxi = 'taxi',
+}
+
 export enum ContractorsColumn {
   Id = 'ID',
   FullName = 'ФИО',
@@ -114,7 +119,8 @@ export type CellValue = string | number | boolean | null;
 
 export interface GoogleSheetsAPIServiceOptions {
   keyFilePath: string;
-  spreadsheetId: string;
+  deliverySpreadsheetId: string;
+  taxiSpreadsheetId: string;
   valueInputOption?: 'RAW' | 'USER_ENTERED';
 }
 

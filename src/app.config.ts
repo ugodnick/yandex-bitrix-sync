@@ -2,7 +2,8 @@ interface AppConfig {
   inboundWebhookUrl: string;
   yandexApiKeys: Record<string, string>;
   bitrixAuthToken: string;
-  googleSheetsSheetId: string;
+  googleSheetsDeliverySheetId: string;
+  googleSheetsTaxiSheetId: string;
 }
 
 export function loadConfig(): AppConfig {
@@ -36,6 +37,7 @@ export function loadConfig(): AppConfig {
       '760f5b77a27247769e60eacd66177cd2': requireEnv('KAPELLA_YANDEX_API_KEY'),
       d75483feacd2499e8e601f9fd17a5f73: requireEnv('VEGA_YANDEX_API_KEY'),
     } as Record<string, string>,
-    googleSheetsSheetId: requireEnv('GOOGLE_SHEET_ID'),
+    googleSheetsDeliverySheetId: requireEnv('GOOGLE_SHEET_DELIVERY_ID'),
+    googleSheetsTaxiSheetId: requireEnv('GOOGLE_SHEET_TAXI_ID'),
   };
 }
