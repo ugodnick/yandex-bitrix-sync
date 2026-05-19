@@ -33,6 +33,7 @@ import {
   mapYandexColorToBitrix,
   mapContractorType,
   mapCarOwnership,
+  formatDateInTz,
 } from '../yandex-fleet.utils';
 import { getBitrixCategory } from '../../bitrix/bitrix.utils';
 import { YandexFleetOrderService } from '../yandex-fleet-order/yandex-fleet-order.service';
@@ -43,12 +44,14 @@ import {
   YandexFleetSyncStatus,
   YandexFleetSyncType,
 } from '../yandex-fleet-sync-state.entity';
+import { BitrixSheetExportService } from '../../bitrix/bitrix-sheet-export.service';
 
 export class YandexFleetProfileService {
   constructor(
     private yandexService: YandexFleetService,
     private bitrixService: BitrixService,
     private yandexFleetOrderService: YandexFleetOrderService,
+    private bitrixSheetExportService: BitrixSheetExportService,
     private yandexFleetProfileRepository: Repository<YandexFleetProfileEntity>,
     private yandexFleetOrderRepository: Repository<YandexFleetOrderEntity>,
     private syncStateRepository: Repository<YandexFleetSyncStateEntity>,
@@ -408,9 +411,29 @@ export class YandexFleetProfileService {
       ...flat,
     });
 
+    await this.bitrixSheetExportService.appendNewDeal(
+      this.buildNewDealPayload({
+        phone: flat.phone || '',
+        fullName: flat.lastName + ' ' + flat.firstName + ' ' + (flat.middleName || ''),
+        park: park.name,
+        employmentType: flat.employmentType,
+        createdDate: formatDateInTz(createdDate, true),
+      }),
+    );
+
     console.log(
       `[YandexFleetProfileService] Профиль ${profileId} в парке ${park.name} создан. Сделка: ${String(dealId)}. Контакт: ${String(contactId)}`,
     );
+  }
+
+  private buildNewDealPayload(params: {
+    phone: string;
+    fullName: string;
+    park: string;
+    employmentType: string;
+    createdDate: string;
+  }): string[] {
+    return [params.phone, params.fullName, params.park, params.employmentType, params.createdDate];
   }
 
   private async updateProfile(params: {

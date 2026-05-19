@@ -24,6 +24,7 @@ import { YandexFleetParkEntity } from './yandex-fleet/yandex-fleet-park/yandex-p
 import { YandexFleetSyncStateEntity } from './yandex-fleet/yandex-fleet-sync-state.entity';
 import { YandexFleetTransactionService } from './yandex-fleet/yandex-fleet-transaction/yandex-fleet-transaction.service';
 import { YandexFleetTransactionEntity } from './yandex-fleet/yandex-fleet-transaction/yandex-fleet-transaction.entity';
+import { BitrixSheetExportService } from './bitrix/bitrix-sheet-export.service';
 
 dotenv.config();
 
@@ -76,7 +77,14 @@ function initServices(database: DataSource): void {
         container.get(YandexFleetProfileService),
       ),
   );
-
+  container.add(
+    BitrixSheetExportService,
+    () =>
+      new BitrixSheetExportService(
+        container.get(BitrixService),
+        container.get(GoogleSheetsAPIService),
+      ),
+  );
   container.add(
     YandexFleetProfileService,
     () =>
@@ -84,6 +92,7 @@ function initServices(database: DataSource): void {
         container.get(YandexFleetService),
         container.get(BitrixService),
         container.get(YandexFleetOrderService),
+        container.get(BitrixSheetExportService),
         yandexFleetProfileRepository,
         yandexFleetOrderRepository,
         yandexFleetsyncStateRepository,
@@ -104,9 +113,9 @@ function initServices(database: DataSource): void {
         keyFilePath: join(__dirname, '..', 'google-sheets-credentials.json'),
         taxiSpreadsheetId: config.googleSheetsTaxiSheetId,
         deliverySpreadsheetId: config.googleSheetsDeliverySheetId,
+        bitrixSpreadsheetId: config.googleSheetsBitrixSheetId,
       }),
   );
-
   container.add(
     YandexFleetOrderService,
     () =>
@@ -116,7 +125,6 @@ function initServices(database: DataSource): void {
         container.get(YandexFleetService),
       ),
   );
-
   container.add(
     YandexFleetTransactionService,
     () =>
@@ -151,7 +159,7 @@ function scheduleGoogleSheetExport() {
         const exportService = container.get(YandexFleetSheetExportService);
         await exportService.exportToGoogleSheets();
       }),
-    { timezone: 'Asia/Vladivostok' },
+    { timezone: 'Asia/Vladivostok', runOnInit: false },
   );
 }
 
@@ -169,9 +177,11 @@ function scheduleSupplyHoursSync() {
   };
   cron.schedule('0 0 5 * *', () => queue.enqueue('month', () => runSync('month')), {
     timezone: 'Asia/Vladivostok',
+    runOnInit: false,
   });
   cron.schedule('0 8 * * 2', () => queue.enqueue('week', () => runSync('week')), {
     timezone: 'Asia/Vladivostok',
+    runOnInit: false,
   });
 }
 

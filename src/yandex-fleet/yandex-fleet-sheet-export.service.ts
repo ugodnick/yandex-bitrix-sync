@@ -1,7 +1,7 @@
 import { In, MoreThan, Repository } from 'typeorm';
 import { YandexFleetProfileEntity } from './yandex-fleet-profile/yandex-fleet-profile.entity';
 import { GoogleSheetsAPIService } from '../google-sheet/google-sheet.service';
-import { SheetName, SheetType } from '../google-sheet/google-sheet.type';
+import { SheetType, YandexFleetSheetName } from '../google-sheet/google-sheet.type';
 import {
   formatDate,
   formatDateInTz,
@@ -84,9 +84,13 @@ export class YandexFleetSheetExportService {
       offset += BATCH_SIZE;
     }
 
-    await this.googleSheetsApiService.truncateSheet(SheetName.Contractors, sheetType, 1);
-    await this.googleSheetsApiService.ensureHeaders(SheetName.Contractors, sheetType);
-    await this.googleSheetsApiService.appendRawRows(SheetName.Contractors, sheetType, allRows);
+    await this.googleSheetsApiService.truncateSheet(YandexFleetSheetName.Contractors, sheetType, 1);
+    await this.googleSheetsApiService.ensureHeaders(YandexFleetSheetName.Contractors, sheetType);
+    await this.googleSheetsApiService.appendRawRows(
+      YandexFleetSheetName.Contractors,
+      sheetType,
+      allRows,
+    );
   }
 
   private profileToRow(
@@ -161,9 +165,13 @@ export class YandexFleetSheetExportService {
       offset += BATCH_SIZE;
     }
 
-    await this.googleSheetsApiService.truncateSheet(SheetName.Orders, sheetType, 1);
-    await this.googleSheetsApiService.ensureHeaders(SheetName.Orders, sheetType);
-    await this.googleSheetsApiService.appendRawRows(SheetName.Orders, sheetType, allRows);
+    await this.googleSheetsApiService.truncateSheet(YandexFleetSheetName.Orders, sheetType, 1);
+    await this.googleSheetsApiService.ensureHeaders(YandexFleetSheetName.Orders, sheetType);
+    await this.googleSheetsApiService.appendRawRows(
+      YandexFleetSheetName.Orders,
+      sheetType,
+      allRows,
+    );
   }
 
   private orderToRow(
@@ -210,9 +218,17 @@ export class YandexFleetSheetExportService {
       offset += BATCH_SIZE;
     }
 
-    await this.googleSheetsApiService.truncateSheet(SheetName.Transactions, sheetType, 1);
-    await this.googleSheetsApiService.ensureHeaders(SheetName.Transactions, sheetType);
-    await this.googleSheetsApiService.appendRawRows(SheetName.Transactions, sheetType, allRows);
+    await this.googleSheetsApiService.truncateSheet(
+      YandexFleetSheetName.Transactions,
+      sheetType,
+      1,
+    );
+    await this.googleSheetsApiService.ensureHeaders(YandexFleetSheetName.Transactions, sheetType);
+    await this.googleSheetsApiService.appendRawRows(
+      YandexFleetSheetName.Transactions,
+      sheetType,
+      allRows,
+    );
   }
 
   private transactionToRow(
@@ -238,14 +254,14 @@ export class YandexFleetSheetExportService {
     await this.exportSupplyHours(
       parks,
       SheetType.Delivery,
-      SheetName.SupplyHoursMonth,
+      YandexFleetSheetName.SupplyHoursMonth,
       periodFrom,
       periodTo,
     );
     await this.exportSupplyHours(
       parks,
       SheetType.Taxi,
-      SheetName.SupplyHoursMonth,
+      YandexFleetSheetName.SupplyHoursMonth,
       periodFrom,
       periodTo,
     );
@@ -255,6 +271,8 @@ export class YandexFleetSheetExportService {
     const now = new Date();
     const dayOfWeek = now.getDay();
     const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const taxiParks = parks.filter((p) => p.type === YandexFleetParkType.Taxi);
+    const deliveryParks = parks.filter((p) => p.type === YandexFleetParkType.Delivery);
 
     const periodTo = new Date(now);
     periodTo.setDate(now.getDate() - daysSinceMonday);
@@ -264,16 +282,16 @@ export class YandexFleetSheetExportService {
     periodFrom.setDate(periodTo.getDate() - 7);
 
     await this.exportSupplyHours(
-      parks,
+      deliveryParks,
       SheetType.Delivery,
-      SheetName.SupplyWeekMonth,
+      YandexFleetSheetName.SupplyWeekMonth,
       periodFrom,
       periodTo,
     );
     await this.exportSupplyHours(
-      parks,
+      taxiParks,
       SheetType.Taxi,
-      SheetName.SupplyWeekMonth,
+      YandexFleetSheetName.SupplyWeekMonth,
       periodFrom,
       periodTo,
     );
@@ -282,7 +300,7 @@ export class YandexFleetSheetExportService {
   private async exportSupplyHours(
     parks: YandexFleetParkEntity[],
     sheetType: SheetType,
-    sheetName: SheetName.SupplyHoursMonth | SheetName.SupplyWeekMonth,
+    sheetName: YandexFleetSheetName.SupplyHoursMonth | YandexFleetSheetName.SupplyWeekMonth,
     periodFrom: Date,
     periodTo: Date,
   ): Promise<void> {

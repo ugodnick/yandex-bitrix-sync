@@ -16,10 +16,11 @@ export class GoogleSheetsAPIService {
   private readonly sheets: sheets_v4.Sheets;
   private readonly deliverySpreadsheetId: string;
   private readonly taxiSpreadsheetId: string;
+  private readonly bitrixSpreadsheetId: string;
   private readonly valueInputOption: 'RAW' | 'USER_ENTERED';
 
   constructor(options: GoogleSheetsAPIServiceOptions) {
-    const { keyFilePath, deliverySpreadsheetId, taxiSpreadsheetId } = options;
+    const { keyFilePath, deliverySpreadsheetId, taxiSpreadsheetId, bitrixSpreadsheetId } = options;
 
     if (!fs.existsSync(keyFilePath)) {
       throw new Error(`Service account key file not found at: ${path.resolve(keyFilePath)}`);
@@ -33,6 +34,7 @@ export class GoogleSheetsAPIService {
     this.sheets = google.sheets({ version: 'v4', auth: auth as unknown as JWT });
     this.deliverySpreadsheetId = deliverySpreadsheetId;
     this.taxiSpreadsheetId = taxiSpreadsheetId;
+    this.bitrixSpreadsheetId = bitrixSpreadsheetId;
     this.valueInputOption = options.valueInputOption ?? 'RAW';
   }
 
@@ -246,6 +248,15 @@ export class GoogleSheetsAPIService {
   }
 
   private getSpreadsheetId(sheet: SheetType): string {
-    return sheet === SheetType.Delivery ? this.deliverySpreadsheetId : this.taxiSpreadsheetId;
+    switch (sheet) {
+      case SheetType.Delivery:
+        return this.deliverySpreadsheetId;
+      case SheetType.Taxi:
+        return this.taxiSpreadsheetId;
+      case SheetType.Bitrix:
+        return this.bitrixSpreadsheetId;
+      default:
+        throw new Error(`Unknown sheet type: ${sheet}`);
+    }
   }
 }

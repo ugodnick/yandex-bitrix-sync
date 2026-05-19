@@ -1,4 +1,4 @@
-export enum SheetName {
+export enum YandexFleetSheetName {
   Contractors = 'Исполнители',
   Orders = 'Заказы',
   SupplyHoursMonth = 'Время на линии месяц',
@@ -9,6 +9,7 @@ export enum SheetName {
 export enum SheetType {
   Delivery = 'delivery',
   Taxi = 'taxi',
+  Bitrix = 'bitrix',
 }
 
 export enum ContractorsColumn {
@@ -57,18 +58,18 @@ export enum SupplyWeekMonthColumn {
   SupplyHours = 'Время на линии (ч)',
 }
 
-export type SheetColumnsMap = {
-  [SheetName.Contractors]: ContractorsColumn;
-  [SheetName.Orders]: OrdersColumn;
-  [SheetName.SupplyHoursMonth]: SupplyHoursMonthColumn;
-  [SheetName.SupplyWeekMonth]: SupplyWeekMonthColumn;
-  [SheetName.Transactions]: TransactionsColumn;
+export type YandexFleetSheetColumnsMap = {
+  [YandexFleetSheetName.Contractors]: ContractorsColumn;
+  [YandexFleetSheetName.Orders]: OrdersColumn;
+  [YandexFleetSheetName.SupplyHoursMonth]: SupplyHoursMonthColumn;
+  [YandexFleetSheetName.SupplyWeekMonth]: SupplyWeekMonthColumn;
+  [YandexFleetSheetName.Transactions]: TransactionsColumn;
 };
 
-export const SHEET_COLUMN_ORDER: {
-  [K in SheetName]: ReadonlyArray<SheetColumnsMap[K]>;
+export const YANDEX_FLEET_SHEET_COLUMN_ORDER: {
+  [K in YandexFleetSheetName]: ReadonlyArray<YandexFleetSheetColumnsMap[K]>;
 } = {
-  [SheetName.Contractors]: [
+  [YandexFleetSheetName.Contractors]: [
     ContractorsColumn.Id,
     ContractorsColumn.FullName,
     ContractorsColumn.Phone,
@@ -83,7 +84,7 @@ export const SHEET_COLUMN_ORDER: {
     ContractorsColumn.Park,
     ContractorsColumn.Link,
   ],
-  [SheetName.Orders]: [
+  [YandexFleetSheetName.Orders]: [
     OrdersColumn.ContractorId,
     OrdersColumn.OrderDate,
     OrdersColumn.Status,
@@ -92,15 +93,15 @@ export const SHEET_COLUMN_ORDER: {
     OrdersColumn.Id,
     OrdersColumn.Park,
   ],
-  [SheetName.SupplyHoursMonth]: [
+  [YandexFleetSheetName.SupplyHoursMonth]: [
     SupplyHoursMonthColumn.ContractorId,
     SupplyHoursMonthColumn.SupplyHours,
   ],
-  [SheetName.SupplyWeekMonth]: [
+  [YandexFleetSheetName.SupplyWeekMonth]: [
     SupplyWeekMonthColumn.ContractorId,
     SupplyWeekMonthColumn.SupplyHours,
   ],
-  [SheetName.Transactions]: [
+  [YandexFleetSheetName.Transactions]: [
     TransactionsColumn.Id,
     TransactionsColumn.ProfileId,
     TransactionsColumn.OrderId,
@@ -111,16 +112,62 @@ export const SHEET_COLUMN_ORDER: {
   ],
 };
 
-export type SheetRow<S extends SheetName> = Partial<
-  Record<SheetColumnsMap[S], string | number | boolean | null>
->;
+export enum BitrixSheetName {
+  NewDeals = 'Новые сделки',
+  // Deals = 'Сделки',
+  // Contacts = 'Контакты',
+}
+
+export enum NewDealsColumn {
+  Phone = 'Телефон',
+  FullName = 'ФИО',
+  Park = 'Парк',
+  EmploymentType = 'Тип устройства',
+  DateCreated = 'Дата создания профиля (UTC+10)',
+}
+
+export type BitrixSheetColumnsMap = {
+  [BitrixSheetName.NewDeals]: NewDealsColumn;
+};
+
+export const BITRIX_SHEET_COLUMN_ORDER: {
+  [K in BitrixSheetName]: ReadonlyArray<BitrixSheetColumnsMap[K]>;
+} = {
+  [BitrixSheetName.NewDeals]: [
+    NewDealsColumn.Phone,
+    NewDealsColumn.FullName,
+    NewDealsColumn.Park,
+    NewDealsColumn.EmploymentType,
+    NewDealsColumn.DateCreated,
+  ],
+};
 
 export type CellValue = string | number | boolean | null;
+
+export type YandexFleetSheetRow<S extends YandexFleetSheetName> = Partial<
+  Record<YandexFleetSheetColumnsMap[S], CellValue>
+>;
+
+export type BitrixSheetRow<S extends BitrixSheetName> = Partial<
+  Record<BitrixSheetColumnsMap[S], CellValue>
+>;
+
+export type SheetName = YandexFleetSheetName | BitrixSheetName;
+
+export type SheetRow<S extends SheetName> =
+  | YandexFleetSheetRow<Exclude<S, BitrixSheetName>>
+  | BitrixSheetRow<Exclude<S, YandexFleetSheetName>>;
+
+export const SHEET_COLUMN_ORDER = {
+  ...YANDEX_FLEET_SHEET_COLUMN_ORDER,
+  ...BITRIX_SHEET_COLUMN_ORDER,
+} as const;
 
 export interface GoogleSheetsAPIServiceOptions {
   keyFilePath: string;
   deliverySpreadsheetId: string;
   taxiSpreadsheetId: string;
+  bitrixSpreadsheetId: string;
   valueInputOption?: 'RAW' | 'USER_ENTERED';
 }
 
