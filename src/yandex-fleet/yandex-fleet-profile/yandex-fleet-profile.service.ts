@@ -413,7 +413,7 @@ export class YandexFleetProfileService {
 
     await this.bitrixSheetExportService.appendNewDeal(
       this.buildNewDealPayload({
-        phone: flat.phone || '',
+        phone: flat.phone ? flat.phone.replace(/^\+/, '') : '',
         fullName: flat.lastName + ' ' + flat.firstName + ' ' + (flat.middleName || ''),
         park: park.name,
         employmentType: flat.employmentType,
