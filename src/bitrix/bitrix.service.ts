@@ -1,231 +1,86 @@
-import axios, { AxiosInstance, isAxiosError } from 'axios';
-import {
-  AddBitrixContactDto,
-  AddBitrixDealDto,
-  BitrixContactFields,
-  BitrixDealCategory,
-  BitrixDealFields,
-  BitrixListResponse,
-  BitrixUserField,
-  BitrixUserFieldFields,
-  CreateContactResponse,
-  CreateDealResponse,
-  GetContactResponse,
-  GetDealResponse,
-  GetUserFieldResponse,
-  UpdateBitrixContactDto,
-  UpdateBitrixDealDto,
-  UpdateEntityResponse,
-} from './bitrix.type';
-import { buildError } from './bitrix.utils';
+import type { BitrixContactFields, BitrixDealFields, BitrixUserFieldFields } from './bitrix.type';
+import { BitrixCallService } from './call/bitrix-call.service';
+import { BitrixClient } from './common/bitrix-client';
+import { BitrixUserFieldService } from './common/bitrix-userfield.service';
+import { BitrixContactService } from './contact/bitrix-contact.service';
+import { BitrixDealService } from './deal/bitrix-deal.service';
 
 export class BitrixService {
-  private client: AxiosInstance;
-  private lastRequestTime = 0;
-  private readonly REQUEST_DELAY_MS = 700;
+  readonly client: BitrixClient;
+  readonly contacts: BitrixContactService;
+  readonly deals: BitrixDealService;
+  readonly calls: BitrixCallService;
+  readonly userFields: BitrixUserFieldService;
 
   constructor(inboundWebhookUrl: string) {
-    const baseURL = inboundWebhookUrl.endsWith('/') ? inboundWebhookUrl : `${inboundWebhookUrl}/`;
-
-    this.client = axios.create({
-      baseURL,
-      timeout: 30000,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    this.client.interceptors.request.use(async (config) => {
-      const now = Date.now();
-      const timeToWait = Math.max(0, this.REQUEST_DELAY_MS - (now - this.lastRequestTime));
-
-      if (timeToWait > 0) {
-        await new Promise((resolve) => setTimeout(resolve, timeToWait));
-      }
-
-      this.lastRequestTime = Date.now();
-      return config;
-    });
+    this.client = new BitrixClient(inboundWebhookUrl);
+    this.contacts = new BitrixContactService(this.client);
+    this.deals = new BitrixDealService(this.client);
+    this.calls = new BitrixCallService(this.client);
+    this.userFields = new BitrixUserFieldService(this.client);
   }
 
-  async getContact(contactId: string | number): Promise<BitrixContactFields | null> {
-    let data: GetContactResponse;
-
-    try {
-      const response = await this.client.get<GetContactResponse>('crm.contact.get.json', {
-        params: { id: contactId },
-      });
-      data = response.data;
-    } catch (error) {
-      throw buildError(error, BitrixService.name);
-    }
-
-    return data.result || null;
+  getContact(contactId: string | number): Promise<BitrixContactFields | null> {
+    return this.contacts.get(contactId);
   }
 
-  async getContactsByPhone(phone: string): Promise<BitrixContactFields[]> {
-    let data: BitrixListResponse<BitrixContactFields>;
-
-    try {
-      const response = await this.client.post<BitrixListResponse<BitrixContactFields>>(
-        'crm.contact.list.json',
-        {
-          filter: {
-            PHONE: phone,
-          },
-          select: ['ID', 'NAME', 'LAST_NAME', 'PHONE', 'EMAIL', 'ASSIGNED_BY_ID'],
-        },
-      );
-      data = response.data;
-    } catch (error) {
-      throw buildError(error, BitrixService.name);
-    }
-
-    if (!data.result || data.result.length === 0) return [];
-
-    return data.result;
+  getContactsByPhone(phone: string): Promise<BitrixContactFields[]> {
+    return this.contacts.listByPhone(phone);
   }
 
-  async createContact(fields: BitrixContactFields): Promise<number> {
-    let data: CreateContactResponse;
-    try {
-      const dto: AddBitrixContactDto = { fields };
-      const response = await this.client.post<CreateContactResponse>('crm.contact.add.json', dto);
-      data = response.data;
-    } catch (error) {
-      throw buildError(error, BitrixService.name);
-    }
-
-    if (!data.result) throw new Error('Failed to create contact');
-
-    return data.result;
+  createContact(fields: BitrixContactFields): Promise<number> {
+    return this.contacts.create(fields);
   }
 
-  async updateContact(id: string | number, fields: Partial<BitrixContactFields>): Promise<boolean> {
-    let data: UpdateEntityResponse;
-    try {
-      const dto: UpdateBitrixContactDto = { id, fields };
-      const response = await this.client.post<UpdateEntityResponse>('crm.contact.update.json', dto);
-      data = response.data;
-    } catch (error) {
-      throw buildError(error, BitrixService.name);
-    }
-
-    return data.result || false;
+  updateContact(id: string | number, fields: Partial<BitrixContactFields>): Promise<boolean> {
+    return this.contacts.update(id, fields);
   }
 
-  async createDeal(fields: BitrixDealFields): Promise<number> {
-    let data: CreateDealResponse;
-    try {
-      const dto: AddBitrixDealDto = { fields };
-      const response = await this.client.post<CreateDealResponse>('crm.deal.add.json', dto);
-      data = response.data;
-    } catch (error) {
-      throw buildError(error, BitrixService.name);
-    }
-
-    if (!data.result) throw new Error('Failed to create deal');
-
-    return data.result;
+  getDeal(id: string | number): Promise<BitrixDealFields> {
+    return this.deals.get(id);
   }
 
-  async updateDeal(id: string | number, fields: Partial<BitrixDealFields>): Promise<boolean> {
-    let data: UpdateEntityResponse;
-    try {
-      const dto: UpdateBitrixDealDto = { id, fields };
-      const response = await this.client.post<UpdateEntityResponse>('crm.deal.update.json', dto);
-      data = response.data;
-    } catch (error) {
-      if (isAxiosError(error)) {
-        console.error('updateDeal error:', error?.response?.data || error);
-      }
-
-      throw buildError(error, BitrixService.name);
-    }
-
-    return data.result || false;
+  getDealsByContact(contactId: string | number): Promise<BitrixDealFields[]> {
+    return this.deals.listByContact(contactId);
   }
 
-  async getDeal(id: string | number): Promise<BitrixDealFields> {
-    let data: GetDealResponse;
-
-    try {
-      const response = await this.client.get<GetDealResponse>('crm.deal.get.json', {
-        params: { id },
-      });
-      data = response.data;
-    } catch (error) {
-      throw buildError(error, BitrixService.name);
-    }
-
-    if (!data.result) throw new Error('Deal not found');
-
-    return data.result;
+  createDeal(fields: BitrixDealFields): Promise<number> {
+    return this.deals.create(fields);
   }
 
-  async getDealsByContact(contactId: string | number): Promise<BitrixDealFields[]> {
-    try {
-      const allDeals: BitrixDealFields[] = [];
-      let start = 0;
-
-      while (true) {
-        const response = await this.client.get('crm.deal.list.json', {
-          params: {
-            filter: {
-              CONTACT_ID: contactId,
-              CATEGORY_ID: [BitrixDealCategory.YANDEX_DELIVERY, BitrixDealCategory.YANDEX_TAXI],
-            },
-            order: { ID: 'DESC' },
-            select: ['*', 'UF_*'],
-            start,
-          },
-        });
-
-        const deals: BitrixDealFields[] = response.data.result ?? [];
-        allDeals.push(...deals);
-
-        const next = response.data.next;
-        if (typeof next !== 'number') break;
-        start = next;
-      }
-
-      return allDeals;
-    } catch (error) {
-      throw buildError(error, BitrixService.name);
-    }
+  updateDeal(id: string | number, fields: Partial<BitrixDealFields>): Promise<boolean> {
+    return this.deals.update(id, fields);
   }
 
-  async getUserField(id: string | number): Promise<BitrixUserField> {
-    let data: GetUserFieldResponse;
-
-    try {
-      const response = await this.client.get<GetUserFieldResponse>('crm.userfield.get.json', {
-        params: { id },
-      });
-      data = response.data;
-    } catch (error) {
-      throw buildError(error, BitrixService.name);
-    }
-
-    if (!data.result) throw new Error('UserField not found');
-
-    return data.result;
+  getUserField(id: string | number) {
+    return this.userFields.get(id);
   }
 
-  async updateUserField(id: string | number, fields: Partial<BitrixUserFieldFields>) {
-    let data: UpdateEntityResponse;
+  updateUserField(id: string | number, fields: Partial<BitrixUserFieldFields>) {
+    return this.userFields.update(id, fields);
+  }
 
-    try {
-      const dto = { id, fields };
-      const response = await this.client.post<UpdateEntityResponse>(
-        'crm.userfield.update.json',
-        dto,
-      );
-      data = response.data;
-    } catch (error) {
-      throw buildError(error, BitrixService.name);
-    }
+  listContacts() {
+    return this.contacts.list();
+  }
 
-    return data.result;
+  listContactsModifiedSince(modifiedSince: string) {
+    return this.contacts.listModifiedSince(modifiedSince);
+  }
+
+  listDeals() {
+    return this.deals.list();
+  }
+
+  listDealsModifiedSince(modifiedSince: string) {
+    return this.deals.listModifiedSince(modifiedSince);
+  }
+
+  listCallsForPeriod(from: string, to?: string) {
+    return this.calls.listStatisticsForPeriod(from, to);
+  }
+
+  listUsers() {
+    return this.calls.listUsers();
   }
 }

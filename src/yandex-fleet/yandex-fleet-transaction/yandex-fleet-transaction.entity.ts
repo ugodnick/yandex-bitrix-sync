@@ -9,10 +9,8 @@ import {
   CreateDateColumn,
 } from 'typeorm';
 import { YandexFleetParkEntity } from '../yandex-fleet-park/yandex-park.entity';
-import {
-  YandexFleetProfileEntity,
-  utcDateTimeTransformer,
-} from '../yandex-fleet-profile/yandex-fleet-profile.entity';
+import { utcDateTimeTransformer } from '../../typeorm-transformers';
+import { YandexFleetProfileEntity } from '../yandex-fleet-profile/yandex-fleet-profile.entity';
 import { YandexFleetOrderEntity } from '../yandex-fleet-order/yandex-fleet-order.entity';
 
 @Index(['profileId', 'eventAt'])

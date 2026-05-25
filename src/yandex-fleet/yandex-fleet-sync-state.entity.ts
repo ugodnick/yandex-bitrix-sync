@@ -8,7 +8,7 @@ import {
   UpdateDateColumn,
   CreateDateColumn,
 } from 'typeorm';
-import { utcDateTimeTransformer } from './yandex-fleet-profile/yandex-fleet-profile.entity';
+import { utcDateTimeTransformer } from '../typeorm-transformers';
 import { YandexFleetParkEntity } from './yandex-fleet-park/yandex-park.entity';
 
 export enum YandexFleetSyncType {

@@ -25,10 +25,12 @@ import {
   BITRIX_DICT,
   BITRIX_FIELDS,
   BitrixContactFields,
+  BitrixCrmEvent,
   BitrixCrmWebhookBody,
   BitrixDealFields,
 } from './bitrix.type';
 import { BitrixService } from './bitrix.service';
+import { BitrixSyncService } from './bitrix-sync.service';
 import { Repository } from 'typeorm';
 import { YandexFleetProfileEntity } from '../yandex-fleet/yandex-fleet-profile/yandex-fleet-profile.entity';
 import { YandexFleetParkEntity } from '../yandex-fleet/yandex-fleet-park/yandex-park.entity';
@@ -40,6 +42,7 @@ export class BitrixWebhookService {
     private yandexFleetParkRepository: Repository<YandexFleetParkEntity>,
     private yandexFleetService: YandexFleetService,
     private bitrixService: BitrixService,
+    private bitrixSyncService: BitrixSyncService,
     private yandexFleetProfileService: YandexFleetProfileService,
   ) {}
 
@@ -50,7 +53,23 @@ export class BitrixWebhookService {
     if (!entityId) return;
 
     try {
-      if (event === 'ONCRMDEALUPDATE' || event === 'ONCRMDEALADD') {
+      if (event === BitrixCrmEvent.ONCRMCONTACTDELETE) {
+        await this.bitrixSyncService.deleteContact(entityId);
+        return;
+      }
+
+      if (event === BitrixCrmEvent.ONCRMDEALDELETE) {
+        await this.bitrixSyncService.deleteDeal(entityId);
+        return;
+      }
+
+      if (event === BitrixCrmEvent.ONCRMCONTACTADD || event === BitrixCrmEvent.ONCRMCONTACTUPDATE) {
+        await this.bitrixSyncService.upsertContactById(entityId);
+        return;
+      }
+
+      if (event === BitrixCrmEvent.ONCRMDEALADD || event === BitrixCrmEvent.ONCRMDEALUPDATE) {
+        await this.bitrixSyncService.upsertDealById(entityId);
         await this.syncDealToYandex(entityId);
       }
     } catch (error) {

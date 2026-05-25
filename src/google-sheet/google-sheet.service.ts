@@ -12,6 +12,11 @@ import {
   SheetType,
 } from './google-sheet.type';
 
+function normalizeSheetCell(cell: CellValue): CellValue {
+  if (cell === null || cell === undefined || cell === false) return '';
+  return cell;
+}
+
 export class GoogleSheetsAPIService {
   private readonly sheets: sheets_v4.Sheets;
   private readonly deliverySpreadsheetId: string;
@@ -58,7 +63,7 @@ export class GoogleSheetsAPIService {
       valueInputOption: this.valueInputOption,
       insertDataOption: 'INSERT_ROWS',
       requestBody: {
-        values: rows.map((row) => [...row]),
+        values: rows.map((row) => row.map((cell) => normalizeSheetCell(cell))),
       },
     });
 
@@ -107,7 +112,7 @@ export class GoogleSheetsAPIService {
     const rawRows: CellValue[][] = rows.map((row) =>
       columnOrder.map((col) => {
         const value = (row as Record<string, CellValue | undefined>)[col];
-        return value === undefined ? '' : value;
+        return normalizeSheetCell(value === undefined ? '' : value);
       }),
     );
 

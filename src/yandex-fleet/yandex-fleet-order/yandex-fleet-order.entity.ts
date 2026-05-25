@@ -9,21 +9,11 @@ import {
   PrimaryColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { utcDateTimeTransformer } from '../../typeorm-transformers';
 import { OrderStatus } from '../yandex-fleet.type';
 import { YandexFleetProfileEntity } from '../yandex-fleet-profile/yandex-fleet-profile.entity';
 import { YandexFleetParkEntity } from '../yandex-fleet-park/yandex-park.entity';
 import { YandexFleetTransactionEntity } from '../yandex-fleet-transaction/yandex-fleet-transaction.entity';
-
-export const utcDateTimeTransformer = {
-  to: (value: Date | null | undefined) => {
-    if (!value) return value;
-    return value.toISOString();
-  },
-  from: (value: string | null) => {
-    if (!value) return value;
-    return new Date(value);
-  },
-};
 
 @Index(['profileId', 'bookedAt'])
 @Entity('yandex_fleet_order')

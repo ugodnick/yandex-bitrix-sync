@@ -114,8 +114,9 @@ export const YANDEX_FLEET_SHEET_COLUMN_ORDER: {
 
 export enum BitrixSheetName {
   NewDeals = 'Новые сделки',
-  // Deals = 'Сделки',
-  // Contacts = 'Контакты',
+  Contacts = 'Контакты',
+  Deals = 'Сделки',
+  Calls = 'Звонки',
 }
 
 export enum NewDealsColumn {
@@ -126,8 +127,41 @@ export enum NewDealsColumn {
   DateCreated = 'Дата создания профиля (UTC+10)',
 }
 
+export enum BitrixContactsColumn {
+  Id = 'ID',
+  FullName = 'ФИО',
+  Phone = 'Телефон',
+}
+
+export enum BitrixDealsColumn {
+  Id = 'ID',
+  ContactId = 'ID контакта',
+  DateCreate = 'Дата создания (UTC+10)',
+  DateModify = 'Дата изменения (UTC+10)',
+  Dispatcher = 'Диспетчерская',
+  Vacancy = 'Вакансия',
+  Aggregator = 'Агрегатор',
+  Comment = 'Комментарий',
+  Stage = 'Стадия',
+  Source = 'Источник',
+  City = 'Город',
+}
+
+export enum BitrixCallsColumn {
+  Manager = 'Менеджер',
+  Phone = 'Телефон',
+  CallType = 'Тип звонка',
+  CallTime = 'Время звонка',
+  CallDate = 'Дата звонка (UTC+10)',
+  Status = 'Статус',
+  ContactId = 'ID контакта',
+}
+
 export type BitrixSheetColumnsMap = {
   [BitrixSheetName.NewDeals]: NewDealsColumn;
+  [BitrixSheetName.Contacts]: BitrixContactsColumn;
+  [BitrixSheetName.Deals]: BitrixDealsColumn;
+  [BitrixSheetName.Calls]: BitrixCallsColumn;
 };
 
 export const BITRIX_SHEET_COLUMN_ORDER: {
@@ -139,6 +173,33 @@ export const BITRIX_SHEET_COLUMN_ORDER: {
     NewDealsColumn.Park,
     NewDealsColumn.EmploymentType,
     NewDealsColumn.DateCreated,
+  ],
+  [BitrixSheetName.Contacts]: [
+    BitrixContactsColumn.Id,
+    BitrixContactsColumn.FullName,
+    BitrixContactsColumn.Phone,
+  ],
+  [BitrixSheetName.Deals]: [
+    BitrixDealsColumn.Id,
+    BitrixDealsColumn.ContactId,
+    BitrixDealsColumn.DateCreate,
+    BitrixDealsColumn.DateModify,
+    BitrixDealsColumn.Dispatcher,
+    BitrixDealsColumn.Vacancy,
+    BitrixDealsColumn.Aggregator,
+    BitrixDealsColumn.Comment,
+    BitrixDealsColumn.Stage,
+    BitrixDealsColumn.Source,
+    BitrixDealsColumn.City,
+  ],
+  [BitrixSheetName.Calls]: [
+    BitrixCallsColumn.Manager,
+    BitrixCallsColumn.Phone,
+    BitrixCallsColumn.CallType,
+    BitrixCallsColumn.CallTime,
+    BitrixCallsColumn.CallDate,
+    BitrixCallsColumn.Status,
+    BitrixCallsColumn.ContactId,
   ],
 };
 

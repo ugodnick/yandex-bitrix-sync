@@ -2,9 +2,11 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import cron from 'node-cron';
+import { join } from 'path';
 import AppDataSource from './typeorm';
 import { loadConfig } from './app.config';
 import { Container } from './container';
+import { Queue } from './queue';
 import { YandexFleetService } from './yandex-fleet/yandex-fleet.service';
 import { BitrixService } from './bitrix/bitrix.service';
 import { BitrixCrmWebhookBody } from './bitrix/bitrix.type';
@@ -16,15 +18,19 @@ import { YandexFleetOrderService } from './yandex-fleet/yandex-fleet-order/yande
 import { BitrixWebhookService } from './bitrix/bitrix-webhook.service';
 import { GoogleSheetsAPIService } from './google-sheet/google-sheet.service';
 import { YandexFleetSheetExportService } from './yandex-fleet/yandex-fleet-sheet-export.service';
-import { join } from 'path';
 import { YandexFleetOrderEntity } from './yandex-fleet/yandex-fleet-order/yandex-fleet-order.entity';
 import { DataSource, Repository } from 'typeorm';
-import { Queue } from './queue';
 import { YandexFleetParkEntity } from './yandex-fleet/yandex-fleet-park/yandex-park.entity';
 import { YandexFleetSyncStateEntity } from './yandex-fleet/yandex-fleet-sync-state.entity';
 import { YandexFleetTransactionService } from './yandex-fleet/yandex-fleet-transaction/yandex-fleet-transaction.service';
 import { YandexFleetTransactionEntity } from './yandex-fleet/yandex-fleet-transaction/yandex-fleet-transaction.entity';
 import { BitrixSheetExportService } from './bitrix/bitrix-sheet-export.service';
+import { BitrixSyncService } from './bitrix/bitrix-sync.service';
+import { BitrixContactEntity } from './bitrix/entity/bitrix-contact.entity';
+import { BitrixDealEntity } from './bitrix/entity/bitrix-deal.entity';
+import { BitrixCallEntity } from './bitrix/entity/bitrix-call.entity';
+import { BitrixUserEntity } from './bitrix/entity/bitrix-user.entity';
+import { BitrixSyncStateEntity } from './bitrix/entity/bitrix-sync-state.entity';
 
 dotenv.config();
 
@@ -65,7 +71,25 @@ function initServices(database: DataSource): void {
   yandexFleetParkRepository = database.getRepository(YandexFleetParkEntity);
 
   container.add(YandexFleetService, () => new YandexFleetService());
+  const bitrixContactRepository = database.getRepository(BitrixContactEntity);
+  const bitrixDealRepository = database.getRepository(BitrixDealEntity);
+  const bitrixCallRepository = database.getRepository(BitrixCallEntity);
+  const bitrixUserRepository = database.getRepository(BitrixUserEntity);
+  const bitrixSyncStateRepository = database.getRepository(BitrixSyncStateEntity);
+
   container.add(BitrixService, () => new BitrixService(config.inboundWebhookUrl));
+  container.add(
+    BitrixSyncService,
+    () =>
+      new BitrixSyncService(
+        container.get(BitrixService),
+        bitrixContactRepository,
+        bitrixDealRepository,
+        bitrixCallRepository,
+        bitrixUserRepository,
+        bitrixSyncStateRepository,
+      ),
+  );
   container.add(
     BitrixWebhookService,
     () =>
@@ -74,6 +98,7 @@ function initServices(database: DataSource): void {
         yandexFleetParkRepository,
         container.get(YandexFleetService),
         container.get(BitrixService),
+        container.get(BitrixSyncService),
         container.get(YandexFleetProfileService),
       ),
   );
@@ -81,8 +106,11 @@ function initServices(database: DataSource): void {
     BitrixSheetExportService,
     () =>
       new BitrixSheetExportService(
-        container.get(BitrixService),
         container.get(GoogleSheetsAPIService),
+        bitrixContactRepository,
+        bitrixDealRepository,
+        bitrixCallRepository,
+        yandexFleetParkRepository,
       ),
   );
   container.add(
@@ -156,8 +184,10 @@ function scheduleGoogleSheetExport() {
     '55 */1 * * *',
     () =>
       queue.enqueue('export', async () => {
-        const exportService = container.get(YandexFleetSheetExportService);
-        await exportService.exportToGoogleSheets();
+        const yandexExportService = container.get(YandexFleetSheetExportService);
+        const bitrixExportService = container.get(BitrixSheetExportService);
+        await yandexExportService.exportToGoogleSheets();
+        await bitrixExportService.exportToGoogleSheets();
       }),
     { timezone: 'Asia/Vladivostok', runOnInit: false },
   );
@@ -239,6 +269,30 @@ function scheduleParksOrdersSync() {
   );
 }
 
+function scheduleBitrixSync() {
+  const queue = new Queue('scheduleBitrixSync');
+
+  cron.schedule(
+    '30 */1 * * *',
+    () =>
+      queue.enqueue('hourly', async () => {
+        const syncService = container.get(BitrixSyncService);
+        await syncService.syncHourly();
+      }),
+    { timezone: 'Asia/Vladivostok', runOnInit: false },
+  );
+
+  cron.schedule(
+    '0 3 * * *',
+    () =>
+      queue.enqueue('reconcile', async () => {
+        const syncService = container.get(BitrixSyncService);
+        await syncService.reconcileDaily();
+      }),
+    { timezone: 'Asia/Vladivostok', runOnInit: false },
+  );
+}
+
 async function bootstrap() {
   const database = await initDatabase();
   initServices(database);
@@ -268,8 +322,14 @@ async function bootstrap() {
 
   scheduleParksOrdersSync();
   scheduleParksProfilesSync();
+  scheduleBitrixSync();
   scheduleGoogleSheetExport();
   scheduleSupplyHoursSync();
+
+  container
+    .get(BitrixSyncService)
+    .ensureInitialSync()
+    .catch((error) => console.error('Bitrix initial sync failed:', error));
 }
 
 bootstrap().catch(console.error);
