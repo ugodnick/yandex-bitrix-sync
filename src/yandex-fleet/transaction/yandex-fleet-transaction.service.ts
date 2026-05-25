@@ -1,11 +1,11 @@
 import { LessThan, Repository } from 'typeorm';
-import { YandexFleetParkEntity } from '../yandex-fleet-park/yandex-park.entity';
+import { YandexFleetParkEntity } from '../park/yandex-fleet-park.entity';
 import {
   YandexFleetSyncStateEntity,
   YandexFleetSyncType,
   YandexFleetSyncStatus,
-} from '../yandex-fleet-sync-state.entity';
-import { YandexFleetService } from '../yandex-fleet.service';
+} from '../entity/yandex-fleet-sync-state.entity';
+import { YandexFleetService } from '../common/yandex-fleet.service';
 import { YandexFleetTransactionEntity } from './yandex-fleet-transaction.entity';
 import { YandexFleetTransaction } from './yandex-fleet-transaction.type';
 

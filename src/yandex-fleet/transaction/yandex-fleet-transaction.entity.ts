@@ -8,10 +8,10 @@ import {
   UpdateDateColumn,
   CreateDateColumn,
 } from 'typeorm';
-import { YandexFleetParkEntity } from '../yandex-fleet-park/yandex-park.entity';
+import { YandexFleetParkEntity } from '../park/yandex-fleet-park.entity';
 import { utcDateTimeTransformer } from '../../typeorm-transformers';
-import { YandexFleetProfileEntity } from '../yandex-fleet-profile/yandex-fleet-profile.entity';
-import { YandexFleetOrderEntity } from '../yandex-fleet-order/yandex-fleet-order.entity';
+import { YandexFleetProfileEntity } from '../profile/yandex-fleet-profile.entity';
+import { YandexFleetOrderEntity } from '../order/yandex-fleet-order.entity';
 
 @Index(['profileId', 'eventAt'])
 @Index(['orderId'])

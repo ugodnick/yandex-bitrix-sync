@@ -1,4 +1,4 @@
-import { YandexFleetService } from '../yandex-fleet/yandex-fleet.service';
+import { YandexFleetService } from '../yandex-fleet/common/yandex-fleet.service';
 
 import {
   buildError,
@@ -32,9 +32,9 @@ import {
 import { BitrixService } from './bitrix.service';
 import { BitrixSyncService } from './bitrix-sync.service';
 import { Repository } from 'typeorm';
-import { YandexFleetProfileEntity } from '../yandex-fleet/yandex-fleet-profile/yandex-fleet-profile.entity';
-import { YandexFleetParkEntity } from '../yandex-fleet/yandex-fleet-park/yandex-park.entity';
-import { YandexFleetProfileService } from '../yandex-fleet/yandex-fleet-profile/yandex-fleet-profile.service';
+import { YandexFleetProfileEntity } from '../yandex-fleet/profile/yandex-fleet-profile.entity';
+import { YandexFleetParkEntity } from '../yandex-fleet/park/yandex-fleet-park.entity';
+import { YandexFleetProfileService } from '../yandex-fleet/profile/yandex-fleet-profile.service';
 
 export class BitrixWebhookService {
   constructor(

@@ -9,10 +9,10 @@ import {
   YandexOrdersResponse,
   YandexFleetUpdateCarRequest,
   YandexFleetSupplyHours,
-} from './yandex-fleet.type';
-import yandexApiClient from './yandex-fleet.client';
-import { YandexFleetParkEntity } from './yandex-fleet-park/yandex-park.entity';
-import { YandexFleetTransactionsResponse } from './yandex-fleet-transaction/yandex-fleet-transaction.type';
+} from '../yandex-fleet.type';
+import yandexApiClient from './yandex-fleet-client';
+import { YandexFleetParkEntity } from '../park/yandex-fleet-park.entity';
+import { YandexFleetTransactionsResponse } from '../transaction/yandex-fleet-transaction.type';
 
 export class YandexFleetService {
   private client: AxiosInstance = yandexApiClient;

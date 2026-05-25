@@ -1,14 +1,14 @@
 import { Repository } from 'typeorm';
-import { YandexFleetService } from '../yandex-fleet.service';
+import { YandexFleetService } from '../common/yandex-fleet.service';
 import { BITRIX_CATEGORY_STAGE } from '../../bitrix/bitrix.type';
-import { YandexFleetOrder } from '../yandex-fleet.type';
+import { YandexFleetOrder } from './yandex-fleet-order.type';
 import { YandexFleetOrderEntity } from './yandex-fleet-order.entity';
-import { YandexFleetParkEntity } from '../yandex-fleet-park/yandex-park.entity';
+import { YandexFleetParkEntity } from '../park/yandex-fleet-park.entity';
 import {
   YandexFleetSyncStateEntity,
   YandexFleetSyncType,
   YandexFleetSyncStatus,
-} from '../yandex-fleet-sync-state.entity';
+} from '../entity/yandex-fleet-sync-state.entity';
 import { getBitrixCategory } from '../../bitrix/bitrix.utils';
 
 export class YandexFleetOrderService {

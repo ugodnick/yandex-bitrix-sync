@@ -9,8 +9,8 @@ import {
   ManyToOne,
 } from 'typeorm';
 import { dateTransformer, utcDateTimeTransformer } from '../../typeorm-transformers';
-import { YandexFleetOrderEntity } from '../yandex-fleet-order/yandex-fleet-order.entity';
-import { YandexFleetParkEntity } from '../yandex-fleet-park/yandex-park.entity';
+import { YandexFleetOrderEntity } from '../order/yandex-fleet-order.entity';
+import { YandexFleetParkEntity } from '../park/yandex-fleet-park.entity';
 
 @Entity('yandex_fleet_profile')
 export class YandexFleetProfileEntity {

@@ -19,7 +19,7 @@ import {
   YandexDriverProfessionType,
   YandexFleetEmployment,
 } from '../../yandex-fleet/yandex-fleet.type';
-import { YandexFleetParkType } from '../../yandex-fleet/yandex-fleet-park/yandex-park.entity';
+import { YandexFleetParkType } from '../../yandex-fleet/park/yandex-fleet-park.entity';
 
 const BITRIX_COLOR_TO_YANDEX: Record<number, VehicleColor> = {
   [BITRIX_DICT.COLOR.WHITE]: VehicleColor.White,

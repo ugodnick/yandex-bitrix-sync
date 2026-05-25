@@ -1,7 +1,7 @@
 import { MoreThanOrEqual, Repository } from 'typeorm';
 import { GoogleSheetsAPIService } from '../google-sheet/google-sheet.service';
 import { BitrixSheetName, SheetType } from '../google-sheet/google-sheet.type';
-import { YandexFleetParkEntity } from '../yandex-fleet/yandex-fleet-park/yandex-park.entity';
+import { YandexFleetParkEntity } from '../yandex-fleet/park/yandex-fleet-park.entity';
 import { BitrixCallEntity } from './entity/bitrix-call.entity';
 import { BitrixContactEntity } from './entity/bitrix-contact.entity';
 import { BitrixDealEntity } from './entity/bitrix-deal.entity';

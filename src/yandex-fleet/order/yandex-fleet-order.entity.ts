@@ -10,10 +10,10 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { utcDateTimeTransformer } from '../../typeorm-transformers';
-import { OrderStatus } from '../yandex-fleet.type';
-import { YandexFleetProfileEntity } from '../yandex-fleet-profile/yandex-fleet-profile.entity';
-import { YandexFleetParkEntity } from '../yandex-fleet-park/yandex-park.entity';
-import { YandexFleetTransactionEntity } from '../yandex-fleet-transaction/yandex-fleet-transaction.entity';
+import { OrderStatus } from './yandex-fleet-order.type';
+import { YandexFleetProfileEntity } from '../profile/yandex-fleet-profile.entity';
+import { YandexFleetParkEntity } from '../park/yandex-fleet-park.entity';
+import { YandexFleetTransactionEntity } from '../transaction/yandex-fleet-transaction.entity';
 
 @Index(['profileId', 'bookedAt'])
 @Entity('yandex_fleet_order')
