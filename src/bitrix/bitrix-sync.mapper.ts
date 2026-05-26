@@ -51,6 +51,7 @@ export function dealFieldsToEntity(fields: BitrixDealFields): BitrixDealEntity {
   entity.dateCreate = parseBitrixDate(fields.DATE_CREATE);
   entity.dateModify = parseBitrixDate(fields.DATE_MODIFY);
   entity.dispatcherRaw = serializeDispatcher(fields[BITRIX_FIELDS.DISPATCHER]);
+  entity.profileId = serializeUfValue(fields[BITRIX_FIELDS.PROFILE_ID]);
   entity.vacancyRaw = serializeUfValue(fields[BITRIX_FIELDS.VACANCY]);
   entity.aggregatorRaw = serializeUfValue(fields[BITRIX_FIELDS.AGGREGATOR]);
   entity.comments = fields.COMMENTS ?? null;

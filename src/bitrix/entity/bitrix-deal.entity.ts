@@ -28,6 +28,9 @@ export class BitrixDealEntity {
   @Column({ type: 'text', name: 'dispatcher_raw', nullable: true })
   dispatcherRaw: string | null;
 
+  @Column({ type: 'varchar', name: 'profile_id', nullable: true })
+  profileId: string | null;
+
   @Column({ type: 'varchar', name: 'vacancy_raw', nullable: true })
   vacancyRaw: string | null;
 

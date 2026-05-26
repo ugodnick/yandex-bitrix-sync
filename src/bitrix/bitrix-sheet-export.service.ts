@@ -115,6 +115,7 @@ export class BitrixSheetExportService {
       toSheetString(formatBitrixDateInTz(deal.dateCreate?.toISOString(), true)),
       toSheetString(formatBitrixDateInTz(deal.dateModify?.toISOString(), true)),
       toSheetString(resolveDispatcherName(deal.dispatcherRaw, this.getDispatcherNames())),
+      toSheetString(deal.profileId),
       toSheetString(resolveVacancyLabel(deal.vacancyRaw)),
       toSheetString(resolveAggregatorLabel(deal.aggregatorRaw)),
       toSheetString(deal.comments),
