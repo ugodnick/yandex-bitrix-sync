@@ -70,7 +70,15 @@ export class BitrixContactService {
           'crm.contact.list.json',
           {
             order: { ID: 'ASC' },
-            select: ['ID', 'NAME', 'LAST_NAME', 'SECOND_NAME', 'PHONE'],
+            select: [
+              'ID',
+              'NAME',
+              'LAST_NAME',
+              'SECOND_NAME',
+              'PHONE',
+              'DATE_CREATE',
+              'DATE_MODIFY',
+            ],
             start,
           },
         );
@@ -99,7 +107,15 @@ export class BitrixContactService {
           {
             filter: { '>DATE_MODIFY': modifiedSince },
             order: { DATE_MODIFY: 'ASC' },
-            select: ['ID', 'NAME', 'LAST_NAME', 'SECOND_NAME', 'PHONE', 'DATE_MODIFY'],
+            select: [
+              'ID',
+              'NAME',
+              'LAST_NAME',
+              'SECOND_NAME',
+              'PHONE',
+              'DATE_CREATE',
+              'DATE_MODIFY',
+            ],
             start,
           },
         );

@@ -22,6 +22,8 @@ export interface BitrixContactFields {
   COMPANY_IDS?: number[];
   PHONE?: CrmMultifield[];
   EMAIL?: CrmMultifield[];
+  DATE_CREATE?: string;
+  DATE_MODIFY?: string;
 
   [key: `UF_${string}`]: string | number | undefined | number[] | string[] | boolean;
 }

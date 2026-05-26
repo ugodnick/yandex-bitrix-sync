@@ -38,9 +38,8 @@ export function contactFieldsToEntity(fields: BitrixContactFields): BitrixContac
   entity.lastName = fields.LAST_NAME ?? null;
   entity.secondName = fields.SECOND_NAME ?? null;
   entity.phone = formatContactPhone(fields) || null;
-  entity.bitrixModifiedAt = parseBitrixDate(
-    (fields as BitrixContactFields & { DATE_MODIFY?: string }).DATE_MODIFY,
-  );
+  entity.dateCreate = parseBitrixDate(fields.DATE_CREATE);
+  entity.bitrixModifiedAt = parseBitrixDate(fields.DATE_MODIFY);
   return entity;
 }
 

@@ -20,6 +20,14 @@ export class BitrixContactEntity {
 
   @Column({
     type: 'datetime',
+    name: 'date_create',
+    nullable: true,
+    transformer: utcDateTimeTransformer,
+  })
+  dateCreate: Date | null;
+
+  @Column({
+    type: 'datetime',
     name: 'bitrix_modified_at',
     nullable: true,
     transformer: utcDateTimeTransformer,

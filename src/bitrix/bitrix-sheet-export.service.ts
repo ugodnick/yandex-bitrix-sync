@@ -103,6 +103,7 @@ export class BitrixSheetExportService {
       toSheetString(contact.bitrixId),
       toSheetString(contactEntityDisplayName(contact)),
       toSheetString(contact.phone),
+      toSheetString(formatBitrixDateInTz(contact.dateCreate?.toISOString(), true)),
     ];
   }
 

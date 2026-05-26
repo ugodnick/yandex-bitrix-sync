@@ -131,6 +131,7 @@ export enum BitrixContactsColumn {
   Id = 'ID',
   FullName = 'ФИО',
   Phone = 'Телефон',
+  DateCreate = 'Дата создания (UTC+10)',
 }
 
 export enum BitrixDealsColumn {
@@ -179,6 +180,7 @@ export const BITRIX_SHEET_COLUMN_ORDER: {
     BitrixContactsColumn.Id,
     BitrixContactsColumn.FullName,
     BitrixContactsColumn.Phone,
+    BitrixContactsColumn.DateCreate,
   ],
   [BitrixSheetName.Deals]: [
     BitrixDealsColumn.Id,
