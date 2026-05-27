@@ -199,6 +199,7 @@ export class YandexFleetProfileBitrixMapper {
 
     await this.bitrixSheetExportService.appendNewDeal(
       this.buildNewDealPayload({
+        profileId,
         phone: flat.phone ? flat.phone.replace(/^\+/, '') : '',
         fullName: flat.lastName + ' ' + flat.firstName + ' ' + (flat.middleName || ''),
         park: park.name,
@@ -213,13 +214,21 @@ export class YandexFleetProfileBitrixMapper {
   }
 
   buildNewDealPayload(params: {
+    profileId: string;
     phone: string;
     fullName: string;
     park: string;
     employmentType: string;
     createdDate: string;
   }): string[] {
-    return [params.phone, params.fullName, params.park, params.employmentType, params.createdDate];
+    return [
+      params.phone,
+      params.fullName,
+      params.park,
+      params.employmentType,
+      params.createdDate,
+      params.profileId,
+    ];
   }
 
   async updateProfile(params: {

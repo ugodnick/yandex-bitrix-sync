@@ -125,6 +125,7 @@ export enum NewDealsColumn {
   Park = 'Парк',
   EmploymentType = 'Тип устройства',
   DateCreated = 'Дата создания профиля (UTC+10)',
+  ProfileId = 'ID профиля',
 }
 
 export enum BitrixContactsColumn {
@@ -175,6 +176,7 @@ export const BITRIX_SHEET_COLUMN_ORDER: {
     NewDealsColumn.Park,
     NewDealsColumn.EmploymentType,
     NewDealsColumn.DateCreated,
+    NewDealsColumn.ProfileId,
   ],
   [BitrixSheetName.Contacts]: [
     BitrixContactsColumn.Id,
