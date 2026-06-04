@@ -96,7 +96,18 @@ export class YandexFleetProfileBalanceService {
       );
 
       const drivers = response.driver_profiles ?? [];
-      if (drivers.length === 0) continue;
+      if (drivers.length === 0) {
+        console.warn(
+          `[YandexFleetProfileBalanceService] ${park.name}: API вернул 0 из ${chunk.length} профилей (ids)`,
+        );
+        continue;
+      }
+
+      if (drivers.length < chunk.length) {
+        console.warn(
+          `[YandexFleetProfileBalanceService] ${park.name}: API вернул ${drivers.length}/${chunk.length} профилей`,
+        );
+      }
 
       const profiles = await this.yandexFleetProfileRepository.find({
         where: { yandexProfileId: In(chunk), parkId: park.id },

@@ -53,18 +53,22 @@ export class YandexFleetService {
     from: Date,
     ids: string[] = [],
   ): Promise<YandexDriverProfileResponse> {
+    const parkQuery: {
+      id: string;
+      updated_at?: { from: string };
+      driver_profile?: { ids: string[] };
+    } = { id: park.id };
+
+    if (ids.length > 0) {
+      parkQuery.driver_profile = { ids };
+    } else {
+      parkQuery.updated_at = { from: from.toISOString() };
+    }
+
     const data = {
-      query: {
-        park: {
-          id: park.id,
-          updated_at: {
-            from: from.toISOString(),
-          },
-          driver_profile: undefined as { ids?: string[] } | undefined,
-        },
-      },
+      query: { park: parkQuery },
       fields: {
-        account: ['balance', 'balance_limit', 'currency', 'last_transaction_date'],
+        account: ['id', 'type', 'balance', 'balance_limit', 'currency', 'last_transaction_date'],
         car: ['id'],
         driver_profile: ['id', 'phones', 'work_status', 'hire_date', 'created_date'],
         park: [],
@@ -72,10 +76,6 @@ export class YandexFleetService {
       limit,
       offset,
     };
-
-    if (ids.length > 0) {
-      data.query.park.driver_profile = { ids };
-    }
 
     try {
       const response = await this.client.post<YandexDriverProfileResponse>(

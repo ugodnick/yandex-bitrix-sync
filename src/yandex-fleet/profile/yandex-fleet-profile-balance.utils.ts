@@ -13,7 +13,7 @@ export function applyBalanceToProfile(
   accounts: YandexFleetDriverProfileAccount[] | undefined,
 ): boolean {
   const balance = getCurrentAccountBalance(accounts);
-  if (balance === null || profile.balance === balance) return false;
+  if (balance == null || balance === '' || profile.balance === balance) return false;
 
   profile.balance = balance;
   profile.balanceSyncedAt = new Date();
