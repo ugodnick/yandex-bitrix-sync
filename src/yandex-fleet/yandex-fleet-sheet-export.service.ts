@@ -3,6 +3,11 @@ import { YandexFleetProfileEntity } from './profile/yandex-fleet-profile.entity'
 import { GoogleSheetsAPIService } from '../google-sheet/google-sheet.service';
 import { SheetType, YandexFleetSheetName } from '../google-sheet/google-sheet.type';
 import {
+  getPreviousDayBoundsInVladivostok,
+  getPreviousMonthBoundsInVladivostok,
+  getPreviousWeekBoundsInVladivostok,
+} from './common/yandex-fleet-format.utils';
+import {
   formatDate,
   formatDateInTz,
   mapOrderStatusName,
@@ -247,9 +252,7 @@ export class YandexFleetSheetExportService {
   }
 
   async exportSupplyHoursMonth(parks: YandexFleetParkEntity[]): Promise<void> {
-    const now = new Date();
-    const periodFrom = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const periodTo = new Date(now.getFullYear(), now.getMonth(), 1);
+    const { periodFrom, periodTo } = getPreviousMonthBoundsInVladivostok();
 
     await this.exportSupplyHours(
       parks,
@@ -267,19 +270,33 @@ export class YandexFleetSheetExportService {
     );
   }
 
-  async exportSupplyWeekly(parks: YandexFleetParkEntity[]): Promise<void> {
-    const now = new Date();
-    const dayOfWeek = now.getDay();
-    const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  async exportSupplyHoursDay(parks: YandexFleetParkEntity[]): Promise<void> {
+    const { periodFrom, periodTo } = getPreviousDayBoundsInVladivostok();
+
     const taxiParks = parks.filter((p) => p.type === YandexFleetParkType.Taxi);
     const deliveryParks = parks.filter((p) => p.type === YandexFleetParkType.Delivery);
 
-    const periodTo = new Date(now);
-    periodTo.setDate(now.getDate() - daysSinceMonday);
-    periodTo.setHours(0, 0, 0, 0);
+    await this.exportSupplyHours(
+      deliveryParks,
+      SheetType.Delivery,
+      YandexFleetSheetName.SupplyHoursDay,
+      periodFrom,
+      periodTo,
+    );
+    await this.exportSupplyHours(
+      taxiParks,
+      SheetType.Taxi,
+      YandexFleetSheetName.SupplyHoursDay,
+      periodFrom,
+      periodTo,
+    );
+  }
 
-    const periodFrom = new Date(periodTo);
-    periodFrom.setDate(periodTo.getDate() - 7);
+  async exportSupplyWeekly(parks: YandexFleetParkEntity[]): Promise<void> {
+    const { periodFrom, periodTo } = getPreviousWeekBoundsInVladivostok();
+
+    const taxiParks = parks.filter((p) => p.type === YandexFleetParkType.Taxi);
+    const deliveryParks = parks.filter((p) => p.type === YandexFleetParkType.Delivery);
 
     await this.exportSupplyHours(
       deliveryParks,
@@ -300,7 +317,10 @@ export class YandexFleetSheetExportService {
   private async exportSupplyHours(
     parks: YandexFleetParkEntity[],
     sheetType: SheetType,
-    sheetName: YandexFleetSheetName.SupplyHoursMonth | YandexFleetSheetName.SupplyWeekMonth,
+    sheetName:
+      | YandexFleetSheetName.SupplyHoursMonth
+      | YandexFleetSheetName.SupplyWeekMonth
+      | YandexFleetSheetName.SupplyHoursDay,
     periodFrom: Date,
     periodTo: Date,
   ): Promise<void> {

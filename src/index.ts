@@ -149,6 +149,7 @@ function initServices(database: DataSource): void {
     () =>
       new YandexFleetOrderService(
         yandexFleetOrderRepository,
+        yandexFleetProfileRepository,
         yandexFleetsyncStateRepository,
         container.get(YandexFleetService),
       ),
@@ -203,6 +204,8 @@ function scheduleSupplyHoursSync() {
       await exportService.exportSupplyHoursMonth(parks);
     } else if (mode === 'week') {
       await exportService.exportSupplyWeekly(parks);
+    } else if (mode === 'day') {
+      await exportService.exportSupplyHoursDay(parks);
     }
   };
   cron.schedule('0 0 5 * *', () => queue.enqueue('month', () => runSync('month')), {
@@ -210,6 +213,10 @@ function scheduleSupplyHoursSync() {
     runOnInit: false,
   });
   cron.schedule('0 8 * * 2', () => queue.enqueue('week', () => runSync('week')), {
+    timezone: 'Asia/Vladivostok',
+    runOnInit: false,
+  });
+  cron.schedule('0 5 * * *', () => queue.enqueue('day', () => runSync('day')), {
     timezone: 'Asia/Vladivostok',
     runOnInit: false,
   });

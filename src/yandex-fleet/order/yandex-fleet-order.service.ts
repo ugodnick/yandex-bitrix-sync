@@ -1,9 +1,10 @@
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { YandexFleetService } from '../common/yandex-fleet.service';
 import { BITRIX_CATEGORY_STAGE } from '../../bitrix/bitrix.type';
-import { YandexFleetOrder } from './yandex-fleet-order.type';
+import { OrderStatus, YandexFleetOrder } from './yandex-fleet-order.type';
 import { YandexFleetOrderEntity } from './yandex-fleet-order.entity';
 import { YandexFleetParkEntity } from '../park/yandex-fleet-park.entity';
+import { YandexFleetProfileEntity } from '../profile/yandex-fleet-profile.entity';
 import {
   YandexFleetSyncStateEntity,
   YandexFleetSyncType,
@@ -11,9 +12,12 @@ import {
 } from '../entity/yandex-fleet-sync-state.entity';
 import { getBitrixCategory } from '../../bitrix/bitrix.utils';
 
+const PROFILE_LAST_ORDER_BATCH = 100;
+
 export class YandexFleetOrderService {
   constructor(
     private readonly yandexFleetOrderRepository: Repository<YandexFleetOrderEntity>,
+    private readonly yandexFleetProfileRepository: Repository<YandexFleetProfileEntity>,
     private syncStateRepository: Repository<YandexFleetSyncStateEntity>,
     private readonly yandexFleetService: YandexFleetService,
   ) {}
@@ -80,6 +84,7 @@ export class YandexFleetOrderService {
     try {
       let cursor: string | undefined = undefined;
       let totalSaved = 0;
+      const affectedProfileIds = new Set<string>();
 
       do {
         const page = await this.yandexFleetService.getOrdersPage(park, from, startedAt, cursor);
@@ -90,6 +95,9 @@ export class YandexFleetOrderService {
           try {
             await this.yandexFleetOrderRepository.save(entities);
             totalSaved += entities.length;
+            for (const entity of entities) {
+              affectedProfileIds.add(entity.profileId);
+            }
           } catch (error) {
             console.warn(
               `[YandexFleetOrderService] Батч упал для ${park.name}, переходим на поштучное сохранение`,
@@ -98,6 +106,7 @@ export class YandexFleetOrderService {
               try {
                 await this.yandexFleetOrderRepository.save(entity);
                 totalSaved++;
+                affectedProfileIds.add(entity.profileId);
               } catch (innerError) {
                 console.error(
                   `[YandexFleetOrderService] Заказ ${entity.id} парка ${park.name}:`,
@@ -111,6 +120,8 @@ export class YandexFleetOrderService {
         cursor = page.cursor || undefined;
       } while (cursor);
 
+      const profilesUpdated = await this.refreshLastOrderDates(park.id, affectedProfileIds);
+
       await this.syncStateRepository.save({
         ...state,
         lastSyncedTo: startedAt,
@@ -119,7 +130,9 @@ export class YandexFleetOrderService {
         retryCount: 0,
       });
 
-      console.log(`[YandexFleetOrderService] Парк ${park.name}: сохранено ${totalSaved} заказов`);
+      console.log(
+        `[YandexFleetOrderService] Парк ${park.name}: сохранено ${totalSaved} заказов, обновлено lastOrderDate у ${profilesUpdated} профилей`,
+      );
     } catch (error) {
       await this.syncStateRepository.save({
         ...state,
@@ -133,6 +146,52 @@ export class YandexFleetOrderService {
         error,
       );
     }
+  }
+
+  private async refreshLastOrderDates(parkId: string, profileIds: Set<string>): Promise<number> {
+    if (profileIds.size === 0) return 0;
+
+    const ids = [...profileIds];
+    let updated = 0;
+
+    for (let offset = 0; offset < ids.length; offset += PROFILE_LAST_ORDER_BATCH) {
+      const chunk = ids.slice(offset, offset + PROFILE_LAST_ORDER_BATCH);
+
+      const rows = await this.yandexFleetOrderRepository
+        .createQueryBuilder('o')
+        .select('o.profileId', 'profileId')
+        .addSelect('MAX(o.bookedAt)', 'lastBookedAt')
+        .where('o.parkId = :parkId', { parkId })
+        .andWhere('o.status = :status', { status: OrderStatus.Complete })
+        .andWhere('o.profileId IN (:...chunk)', { chunk })
+        .groupBy('o.profileId')
+        .getRawMany<{ profileId: string; lastBookedAt: string }>();
+
+      const lastByProfile = new Map(
+        rows.map((row) => [row.profileId, new Date(row.lastBookedAt)] as const),
+      );
+
+      const profiles = await this.yandexFleetProfileRepository.find({
+        where: { yandexProfileId: In(chunk), parkId },
+      });
+
+      const toSave: YandexFleetProfileEntity[] = [];
+
+      for (const profile of profiles) {
+        const nextLastOrderDate = lastByProfile.get(profile.yandexProfileId) ?? null;
+        if (profile.lastOrderDate?.getTime() === nextLastOrderDate?.getTime()) continue;
+
+        profile.lastOrderDate = nextLastOrderDate;
+        toSave.push(profile);
+      }
+
+      if (toSave.length > 0) {
+        await this.yandexFleetProfileRepository.save(toSave);
+        updated += toSave.length;
+      }
+    }
+
+    return updated;
   }
 
   private mapOrderToEntity(order: YandexFleetOrder, parkId: string): YandexFleetOrderEntity {

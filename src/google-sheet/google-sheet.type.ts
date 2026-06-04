@@ -3,6 +3,7 @@ export enum YandexFleetSheetName {
   Orders = 'Заказы',
   SupplyHoursMonth = 'Время на линии месяц',
   SupplyWeekMonth = 'Время на линии неделя',
+  SupplyHoursDay = 'Время на линии за прошлый день',
   Transactions = 'Транзакции',
 }
 
@@ -58,11 +59,17 @@ export enum SupplyWeekMonthColumn {
   SupplyHours = 'Время на линии (ч)',
 }
 
+export enum SupplyHoursDayColumn {
+  ContractorId = 'ID исполнителя',
+  SupplyHours = 'Время на линии (ч)',
+}
+
 export type YandexFleetSheetColumnsMap = {
   [YandexFleetSheetName.Contractors]: ContractorsColumn;
   [YandexFleetSheetName.Orders]: OrdersColumn;
   [YandexFleetSheetName.SupplyHoursMonth]: SupplyHoursMonthColumn;
   [YandexFleetSheetName.SupplyWeekMonth]: SupplyWeekMonthColumn;
+  [YandexFleetSheetName.SupplyHoursDay]: SupplyHoursDayColumn;
   [YandexFleetSheetName.Transactions]: TransactionsColumn;
 };
 
@@ -100,6 +107,10 @@ export const YANDEX_FLEET_SHEET_COLUMN_ORDER: {
   [YandexFleetSheetName.SupplyWeekMonth]: [
     SupplyWeekMonthColumn.ContractorId,
     SupplyWeekMonthColumn.SupplyHours,
+  ],
+  [YandexFleetSheetName.SupplyHoursDay]: [
+    SupplyHoursDayColumn.ContractorId,
+    SupplyHoursDayColumn.SupplyHours,
   ],
   [YandexFleetSheetName.Transactions]: [
     TransactionsColumn.Id,
