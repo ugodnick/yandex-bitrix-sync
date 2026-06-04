@@ -17,6 +17,7 @@ import {
 import { BitrixSheetExportService } from '../../bitrix/bitrix-sheet-export.service';
 import { OrderStatus } from '../order/yandex-fleet-order.type';
 import { YandexFleetProfileBitrixMapper } from './yandex-fleet-profile-bitrix.mapper';
+import { applyBalanceToProfile } from './yandex-fleet-profile-balance.utils';
 
 export class YandexFleetProfileService {
   private readonly bitrixMapper: YandexFleetProfileBitrixMapper;
@@ -363,6 +364,7 @@ export class YandexFleetProfileService {
         firstOrderDate,
         createdDate,
         existingContactId,
+        accounts: driver.accounts,
       });
       return;
     } else if (localState.dataHash !== currentHash) {
@@ -377,16 +379,30 @@ export class YandexFleetProfileService {
         lastOrderDate,
         createdDate,
         firstOrderDate,
+        accounts: driver.accounts,
       });
       return;
-    } else if (
-      localState.lastOrderDate?.getTime() !== lastOrderDate?.getTime() ||
-      localState.firstOrderDate?.getTime() !== firstOrderDate?.getTime() ||
-      localState.fleetCreatedAt?.getTime() !== createdDate.getTime()
-    ) {
+    }
+
+    let shouldSave = false;
+
+    if (localState.lastOrderDate?.getTime() !== lastOrderDate?.getTime()) {
       localState.lastOrderDate = lastOrderDate;
+      shouldSave = true;
+    }
+    if (localState.firstOrderDate?.getTime() !== firstOrderDate?.getTime()) {
       localState.firstOrderDate = firstOrderDate;
+      shouldSave = true;
+    }
+    if (localState.fleetCreatedAt?.getTime() !== createdDate.getTime()) {
       localState.fleetCreatedAt = createdDate;
+      shouldSave = true;
+    }
+    if (applyBalanceToProfile(localState, driver.accounts)) {
+      shouldSave = true;
+    }
+
+    if (shouldSave) {
       await this.yandexFleetProfileRepository.save(localState);
     }
   }

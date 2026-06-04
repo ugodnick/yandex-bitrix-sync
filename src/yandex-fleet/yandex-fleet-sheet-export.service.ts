@@ -111,6 +111,7 @@ export class YandexFleetSheetExportService {
       p.hiredAt ? formatDate(p.hiredAt) : '',
       p.firstOrderDate ? formatDateInTz(p.firstOrderDate, true) : '',
       p.lastOrderDate ? formatDateInTz(p.lastOrderDate, true) : '',
+      p.balance ?? '',
       p.employmentType ?? '',
       ruleName,
       p.vehicleType ?? '',

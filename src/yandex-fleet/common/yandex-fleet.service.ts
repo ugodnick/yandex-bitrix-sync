@@ -64,7 +64,7 @@ export class YandexFleetService {
         },
       },
       fields: {
-        account: [],
+        account: ['balance', 'balance_limit', 'currency', 'last_transaction_date'],
         car: ['id'],
         driver_profile: ['id', 'phones', 'work_status', 'hire_date', 'created_date'],
         park: [],

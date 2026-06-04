@@ -85,6 +85,17 @@ export class YandexFleetProfileEntity {
   })
   lastOrderDate: Date | null;
 
+  @Column({ type: 'varchar', name: 'balance', nullable: true })
+  balance: string | null;
+
+  @Column({
+    type: 'datetime',
+    name: 'balance_synced_at',
+    nullable: true,
+    transformer: utcDateTimeTransformer,
+  })
+  balanceSyncedAt: Date | null;
+
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 

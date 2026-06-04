@@ -16,6 +16,7 @@ import {
 import { YandexFleetVehicleData } from '../vehicle/yandex-fleet-vehicle.type';
 import { VehicleAmenities } from '../vehicle/yandex-fleet-vehicle.type';
 import { YandexFleetProfileEntity } from './yandex-fleet-profile.entity';
+import { applyBalanceToProfile } from './yandex-fleet-profile-balance.utils';
 import { calculateDriverHash } from './yandex-fleet-profile.utils';
 import { formatDateInTz } from '../common/yandex-fleet-format.utils';
 import { mapAggregator, mapCategory } from '../park/yandex-fleet-park-bitrix.utils';
@@ -152,6 +153,7 @@ export class YandexFleetProfileBitrixMapper {
     firstOrderDate: Date | null;
     createdDate: Date;
     existingContactId?: number;
+    accounts: YandexFleetDriverProfileItem['accounts'];
   }): Promise<void> {
     const {
       park,
@@ -164,6 +166,7 @@ export class YandexFleetProfileBitrixMapper {
       firstOrderDate,
       createdDate,
       existingContactId,
+      accounts,
     } = params;
 
     const flat = this.extractFlatFields(driverProfile, driverCar, lastOrderDate, firstOrderDate);
@@ -185,7 +188,7 @@ export class YandexFleetProfileBitrixMapper {
       ...dealPayload,
     });
 
-    await this.profileRepository.save({
+    const profileEntity: Partial<YandexFleetProfileEntity> = {
       yandexProfileId: profileId,
       parkId: park.id,
       bitrixStageId: stage,
@@ -195,7 +198,9 @@ export class YandexFleetProfileBitrixMapper {
       hiredAt: driverProfile.profile.hire_date ? new Date(driverProfile.profile.hire_date) : null,
       fleetCreatedAt: createdDate,
       ...flat,
-    });
+    };
+    applyBalanceToProfile(profileEntity as YandexFleetProfileEntity, accounts);
+    await this.profileRepository.save(profileEntity);
 
     await this.bitrixSheetExportService.appendNewDeal(
       this.buildNewDealPayload({
@@ -242,6 +247,7 @@ export class YandexFleetProfileBitrixMapper {
     createdDate: Date;
     lastOrderDate: Date | null;
     firstOrderDate: Date | null;
+    accounts: YandexFleetDriverProfileItem['accounts'];
   }): Promise<void> {
     const {
       park,
@@ -254,6 +260,7 @@ export class YandexFleetProfileBitrixMapper {
       lastOrderDate,
       firstOrderDate,
       createdDate,
+      accounts,
     } = params;
 
     const contactPayload = this.buildContactPayload(driverProfile);
@@ -276,6 +283,7 @@ export class YandexFleetProfileBitrixMapper {
       ? new Date(driverProfile.profile.hire_date)
       : null;
     localState.fleetCreatedAt = createdDate;
+    applyBalanceToProfile(localState, accounts);
     await this.profileRepository.save(localState);
     console.log(
       `[YandexFleetProfileService] Профиль ${profileId} в парке ${park.name} обновлен. Сделка: ${String(localState.bitrixDealId)}. Контакт: ${String(localState.bitrixContactId)}`,

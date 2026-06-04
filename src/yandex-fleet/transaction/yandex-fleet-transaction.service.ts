@@ -6,6 +6,7 @@ import {
   YandexFleetSyncStatus,
 } from '../entity/yandex-fleet-sync-state.entity';
 import { YandexFleetService } from '../common/yandex-fleet.service';
+import { YandexFleetProfileBalanceService } from '../profile/yandex-fleet-profile-balance.service';
 import { YandexFleetTransactionEntity } from './yandex-fleet-transaction.entity';
 import { YandexFleetTransaction } from './yandex-fleet-transaction.type';
 
@@ -16,6 +17,7 @@ export class YandexFleetTransactionService {
     private readonly yandexFleetTransactionRepository: Repository<YandexFleetTransactionEntity>,
     private readonly syncStateRepository: Repository<YandexFleetSyncStateEntity>,
     private readonly yandexFleetService: YandexFleetService,
+    private readonly profileBalanceService: YandexFleetProfileBalanceService,
   ) {}
 
   async syncParkTransactions(park: YandexFleetParkEntity): Promise<void> {
@@ -43,6 +45,7 @@ export class YandexFleetTransactionService {
     try {
       let cursor: string | undefined = undefined;
       let totalSaved = 0;
+      const affectedProfileIds = new Set<string>();
 
       do {
         const page = await this.yandexFleetService.getTransactionsPage(
@@ -57,6 +60,9 @@ export class YandexFleetTransactionService {
           try {
             await this.yandexFleetTransactionRepository.save(entities);
             totalSaved += entities.length;
+            for (const entity of entities) {
+              affectedProfileIds.add(entity.profileId);
+            }
           } catch (error) {
             console.warn(
               `[YandexFleetTransactionService] Батч упал для ${park.name}, переходим на поштучное сохранение`,
@@ -65,6 +71,7 @@ export class YandexFleetTransactionService {
               try {
                 await this.yandexFleetTransactionRepository.save(entity);
                 totalSaved++;
+                affectedProfileIds.add(entity.profileId);
               } catch (innerError) {
                 console.error(
                   `[YandexFleetTransactionService] Транзакция ${entity.id} парка ${park.name}:`,
@@ -78,8 +85,13 @@ export class YandexFleetTransactionService {
         cursor = page.cursor || undefined;
       } while (cursor);
 
+      const balancesUpdated = await this.profileBalanceService.refreshBalancesForProfileIds(
+        park,
+        affectedProfileIds,
+      );
+
       console.log(
-        `[YandexFleetTransactionService] Парк ${park.name}: сохранено ${totalSaved} транзакций`,
+        `[YandexFleetTransactionService] Парк ${park.name}: сохранено ${totalSaved} транзакций, обновлено балансов: ${balancesUpdated}`,
       );
 
       const cutoff = new Date();

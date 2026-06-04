@@ -12,6 +12,7 @@ import { BitrixService } from './bitrix/bitrix.service';
 import { BitrixCrmWebhookBody } from './bitrix/bitrix.type';
 import { YandexFleetProfileEntity } from './yandex-fleet/profile/yandex-fleet-profile.entity';
 import { YandexFleetProfileService } from './yandex-fleet/profile/yandex-fleet-profile.service';
+import { YandexFleetProfileBalanceService } from './yandex-fleet/profile/yandex-fleet-profile-balance.service';
 import { YandexFleetWorkRuleEntity } from './yandex-fleet/work-rule/yandex-fleet-work-rule.entity';
 import { YandexFleetWorkRuleService } from './yandex-fleet/work-rule/yandex-fleet-work-rule.service';
 import { YandexFleetOrderService } from './yandex-fleet/order/yandex-fleet-order.service';
@@ -114,6 +115,15 @@ function initServices(database: DataSource): void {
       ),
   );
   container.add(
+    YandexFleetProfileBalanceService,
+    () =>
+      new YandexFleetProfileBalanceService(
+        yandexFleetProfileRepository,
+        yandexFleetParkRepository,
+        container.get(YandexFleetService),
+      ),
+  );
+  container.add(
     YandexFleetProfileService,
     () =>
       new YandexFleetProfileService(
@@ -161,6 +171,7 @@ function initServices(database: DataSource): void {
         yandexFleetTransactionRepository,
         yandexFleetsyncStateRepository,
         container.get(YandexFleetService),
+        container.get(YandexFleetProfileBalanceService),
       ),
   );
   container.add(
@@ -276,6 +287,17 @@ function scheduleParksOrdersSync() {
   );
 }
 
+function scheduleBalanceBackfill() {
+  const queue = new Queue('balanceBackfill');
+  const runBackfill = () =>
+    queue.enqueue('full', async () => {
+      const balanceService = container.get(YandexFleetProfileBalanceService);
+      await balanceService.refreshAllBalances();
+    });
+
+  cron.schedule('30 */24 * * *', runBackfill, { timezone: 'Asia/Vladivostok', runOnInit: true });
+}
+
 function scheduleBitrixSync() {
   const queue = new Queue('scheduleBitrixSync');
 
@@ -332,6 +354,7 @@ async function bootstrap() {
   scheduleBitrixSync();
   scheduleGoogleSheetExport();
   scheduleSupplyHoursSync();
+  scheduleBalanceBackfill();
 
   container
     .get(BitrixSyncService)

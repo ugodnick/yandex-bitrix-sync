@@ -13,6 +13,7 @@ export interface YandexFleetDriverProfileAccount {
   balance: string;
   balance_limit: string;
   currency: string;
+  last_transaction_date?: string;
 }
 
 export type DriverStatus = 'offline' | 'busy' | 'free' | 'in_order_free' | 'in_order_busy';
