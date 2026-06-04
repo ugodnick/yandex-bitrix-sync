@@ -56,11 +56,11 @@ export class YandexFleetService {
     const parkQuery: {
       id: string;
       updated_at?: { from: string };
-      driver_profile?: { ids: string[] };
+      driver_profile?: { id: string[] };
     } = { id: park.id };
 
     if (ids.length > 0) {
-      parkQuery.driver_profile = { ids };
+      parkQuery.driver_profile = { id: ids };
     } else {
       parkQuery.updated_at = { from: from.toISOString() };
     }
