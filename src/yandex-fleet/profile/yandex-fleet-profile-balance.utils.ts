@@ -8,6 +8,11 @@ export function getCurrentAccountBalance(
   return current?.balance ?? null;
 }
 
+export function formatBalanceForSheet(balance: string | null | undefined): string {
+  if (balance == null || balance === '') return '';
+  return balance.replace('.', ',');
+}
+
 export function applyBalanceToProfile(
   profile: YandexFleetProfileEntity,
   accounts: YandexFleetDriverProfileAccount[] | undefined,

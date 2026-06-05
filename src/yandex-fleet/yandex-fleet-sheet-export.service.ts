@@ -13,6 +13,7 @@ import {
   mapOrderStatusName,
   stageToStatus,
 } from './yandex-fleet-sheet.utils';
+import { formatBalanceForSheet } from './profile/yandex-fleet-profile-balance.utils';
 import { YandexFleetWorkRuleEntity } from './work-rule/yandex-fleet-work-rule.entity';
 import { YandexFleetOrderEntity } from './order/yandex-fleet-order.entity';
 import { YandexFleetService } from './common/yandex-fleet.service';
@@ -95,6 +96,7 @@ export class YandexFleetSheetExportService {
       YandexFleetSheetName.Contractors,
       sheetType,
       allRows,
+      'USER_ENTERED',
     );
   }
 
@@ -111,13 +113,13 @@ export class YandexFleetSheetExportService {
       p.hiredAt ? formatDate(p.hiredAt) : '',
       p.firstOrderDate ? formatDateInTz(p.firstOrderDate, true) : '',
       p.lastOrderDate ? formatDateInTz(p.lastOrderDate, true) : '',
-      p.balance ?? '',
       p.employmentType ?? '',
       ruleName,
       p.vehicleType ?? '',
       stageToStatus(park.type, p.bitrixStageId),
       park.name,
       'https://fleet.yandex.ru/contractors/' + p.yandexProfileId + '/details?park_id=' + p.parkId,
+      formatBalanceForSheet(p.balance),
     ];
   }
 

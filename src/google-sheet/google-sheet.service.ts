@@ -47,6 +47,7 @@ export class GoogleSheetsAPIService {
     sheet: SheetName,
     sheetType: SheetType,
     rows: ReadonlyArray<ReadonlyArray<CellValue>>,
+    valueInputOption: 'RAW' | 'USER_ENTERED' = this.valueInputOption,
   ): Promise<AppendResult> {
     if (rows.length === 0) {
       return {
@@ -60,7 +61,7 @@ export class GoogleSheetsAPIService {
     const response = await this.sheets.spreadsheets.values.append({
       spreadsheetId: this.getSpreadsheetId(sheetType),
       range: sheet,
-      valueInputOption: this.valueInputOption,
+      valueInputOption,
       insertDataOption: 'INSERT_ROWS',
       requestBody: {
         values: rows.map((row) => row.map((cell) => normalizeSheetCell(cell))),

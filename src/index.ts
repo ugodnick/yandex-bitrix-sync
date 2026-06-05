@@ -119,7 +119,6 @@ function initServices(database: DataSource): void {
     () =>
       new YandexFleetProfileBalanceService(
         yandexFleetProfileRepository,
-        yandexFleetParkRepository,
         container.get(YandexFleetService),
       ),
   );
@@ -287,17 +286,6 @@ function scheduleParksOrdersSync() {
   );
 }
 
-function scheduleBalanceBackfill() {
-  const queue = new Queue('balanceBackfill');
-  const runBackfill = () =>
-    queue.enqueue('full', async () => {
-      const balanceService = container.get(YandexFleetProfileBalanceService);
-      await balanceService.refreshAllBalances();
-    });
-
-  cron.schedule('30 */24 * * *', runBackfill, { timezone: 'Asia/Vladivostok', runOnInit: true });
-}
-
 function scheduleBitrixSync() {
   const queue = new Queue('scheduleBitrixSync');
 
@@ -354,7 +342,6 @@ async function bootstrap() {
   scheduleBitrixSync();
   scheduleGoogleSheetExport();
   scheduleSupplyHoursSync();
-  scheduleBalanceBackfill();
 
   container
     .get(BitrixSyncService)
