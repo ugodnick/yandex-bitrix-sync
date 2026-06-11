@@ -11,6 +11,7 @@ import { YandexFleetTransactionEntity } from './yandex-fleet-transaction.entity'
 import { YandexFleetTransaction } from './yandex-fleet-transaction.type';
 
 const RETENTION_DAYS = 50;
+const SYNC_BUFFER_HOURS = 72;
 
 export class YandexFleetTransactionService {
   constructor(
@@ -22,7 +23,7 @@ export class YandexFleetTransactionService {
 
   async syncParkTransactions(park: YandexFleetParkEntity): Promise<void> {
     const startedAt = new Date();
-    const bufferOverlap = 12 * 60 * 60 * 1000;
+    const bufferOverlap = SYNC_BUFFER_HOURS * 60 * 60 * 1000;
     const fallback = new Date();
     fallback.setDate(fallback.getDate() - RETENTION_DAYS);
 
