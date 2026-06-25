@@ -52,3 +52,19 @@ export const BITRIX_AGGREGATOR_LABELS: Record<string, string> = {
   [BITRIX_DICT.AGGREGATOR.YANDEX_MARKET]: 'Яндекс Маркет',
   [BITRIX_DICT.AGGREGATOR.YANDEX_DELIVERY]: 'Яндекс Доставка',
 };
+
+export const BITRIX_SOURCE_LABELS: Record<string, string> = {
+  [BITRIX_DICT.SOURCE.FARPOST]: 'Фарпост',
+  [BITRIX_DICT.SOURCE.AVITO]: 'Авито',
+  [BITRIX_DICT.SOURCE.HH]: 'Hh',
+  [BITRIX_DICT.SOURCE.GIS2]: '2Гис',
+  [BITRIX_DICT.SOURCE.LANDING]: 'Высадка',
+  [BITRIX_DICT.SOURCE.CENTER_KHABAROVSK]: 'Центр Хабаровск',
+  [BITRIX_DICT.SOURCE.CENTER_VLADIVOSTOK]: 'Центр Владивосток',
+  [BITRIX_DICT.SOURCE.REPEAT_SALE]: 'Повторные продажи',
+  [BITRIX_DICT.SOURCE.BEELINE_ATS]: 'Билайн АТС 9098503000',
+  [BITRIX_DICT.SOURCE.WAZZUP_MAX]: 'WAZZUP: Max - MAX 7-909-850-30-00',
+  [BITRIX_DICT.SOURCE.WHATCRM_TELEGRAM]: '[whatcrm] Telegram - [whatcrm] line #5',
+  [BITRIX_DICT.SOURCE.REFERRAL]: 'Реферал',
+  [BITRIX_DICT.SOURCE.MAX_PHONE]: 'Max 79098503000',
+};

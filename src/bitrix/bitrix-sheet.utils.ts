@@ -1,5 +1,6 @@
 import {
   BITRIX_AGGREGATOR_LABELS,
+  BITRIX_SOURCE_LABELS,
   BITRIX_STAGE_LABELS,
   BITRIX_VACANCY_LABELS,
 } from './bitrix-sheet-labels';
@@ -111,6 +112,10 @@ export function resolveVacancyLabel(value: unknown): string {
 export function resolveStageLabel(stageId?: string | null): string {
   if (!stageId) return '';
   return BITRIX_STAGE_LABELS[stageId] ?? stageId;
+}
+
+export function resolveSourceLabel(sourceId?: string | null): string {
+  return resolveListLabel(BITRIX_SOURCE_LABELS, sourceId);
 }
 
 export function resolveDispatcherName(

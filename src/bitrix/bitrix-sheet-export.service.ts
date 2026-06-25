@@ -14,6 +14,7 @@ import {
   formatExportTitleDate,
   resolveAggregatorLabel,
   resolveDispatcherName,
+  resolveSourceLabel,
   resolveStageLabel,
   resolveVacancyLabel,
   toIsoPeriodStartMonthsAgo,
@@ -108,8 +109,6 @@ export class BitrixSheetExportService {
   }
 
   private dealToRow(deal: BitrixDealEntity): string[] {
-    const source = [deal.sourceId, deal.sourceDescription].filter(Boolean).join(' — ');
-
     return [
       toSheetString(deal.bitrixId),
       toSheetString(deal.contactId),
@@ -121,7 +120,7 @@ export class BitrixSheetExportService {
       toSheetString(resolveAggregatorLabel(deal.aggregatorRaw)),
       toSheetString(deal.comments),
       toSheetString(resolveStageLabel(deal.stageId)),
-      toSheetString(source),
+      toSheetString(resolveSourceLabel(deal.sourceId)),
       toSheetString(deal.city),
     ];
   }
