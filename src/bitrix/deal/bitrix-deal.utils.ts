@@ -222,6 +222,9 @@ export const getBitrixCategory = (
     return BITRIX_CATEGORY_STAGE[BitrixDealCategory.YANDEX_DELIVERY];
   if (type === YandexFleetParkType.Taxi)
     return BITRIX_CATEGORY_STAGE[BitrixDealCategory.YANDEX_TAXI];
+  if (type === YandexFleetParkType.Eat) {
+    throw new Error('Eat park type is not synced to Bitrix');
+  }
 
   throw new Error('No such park type in constants');
 };

@@ -6,6 +6,7 @@ import { YandexFleetProfileEntity } from '../profile/yandex-fleet-profile.entity
 export enum YandexFleetParkType {
   Delivery = 'delivery',
   Taxi = 'taxi',
+  Eat = 'eat',
 }
 
 @Entity('yandex_fleet_park')

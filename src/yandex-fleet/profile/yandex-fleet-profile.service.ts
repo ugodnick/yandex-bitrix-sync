@@ -10,6 +10,11 @@ import { YandexFleetOrderService } from '../order/yandex-fleet-order.service';
 import { YandexFleetOrderEntity } from '../order/yandex-fleet-order.entity';
 import { YandexFleetParkEntity } from '../park/yandex-fleet-park.entity';
 import {
+  EAT_PROFILE_STAGES,
+  getProfileStages,
+  isEatPark,
+} from '../park/yandex-fleet-park-eat.utils';
+import {
   YandexFleetSyncStateEntity,
   YandexFleetSyncStatus,
   YandexFleetSyncType,
@@ -17,10 +22,12 @@ import {
 import { BitrixSheetExportService } from '../../bitrix/bitrix-sheet-export.service';
 import { OrderStatus } from '../order/yandex-fleet-order.type';
 import { YandexFleetProfileBitrixMapper } from './yandex-fleet-profile-bitrix.mapper';
+import { YandexFleetProfileLocalMapper } from './yandex-fleet-profile-local.mapper';
 import { applyBalanceToProfile } from './yandex-fleet-profile-balance.utils';
 
 export class YandexFleetProfileService {
   private readonly bitrixMapper: YandexFleetProfileBitrixMapper;
+  private readonly localMapper: YandexFleetProfileLocalMapper;
 
   constructor(
     private yandexService: YandexFleetService,
@@ -36,6 +43,7 @@ export class YandexFleetProfileService {
       bitrixSheetExportService,
       yandexFleetProfileRepository,
     );
+    this.localMapper = new YandexFleetProfileLocalMapper(yandexFleetProfileRepository);
   }
 
   async syncProfiles(park: YandexFleetParkEntity, newOnly: boolean): Promise<void> {
@@ -155,14 +163,18 @@ export class YandexFleetProfileService {
   async syncProfileStages(park: YandexFleetParkEntity): Promise<void> {
     console.log(`[YandexFleetProfileService] Запуск синхронизации стадий: ${park.name}`);
 
-    const category = getBitrixCategory(park.type);
-    const stagesToSkip: string[] = [
-      category.Duplicates,
-      category.Refusal,
-      category.SpamAdvertisingIlliquid,
-      category.Pause,
-      category.Archive,
-    ];
+    const stagesToSkip: string[] = isEatPark(park)
+      ? [EAT_PROFILE_STAGES.Archive]
+      : (() => {
+          const bitrixStages = getBitrixCategory(park.type);
+          return [
+            bitrixStages.Duplicates,
+            bitrixStages.Refusal,
+            bitrixStages.SpamAdvertisingIlliquid,
+            bitrixStages.Pause,
+            bitrixStages.Archive,
+          ];
+        })();
 
     const BATCH_SIZE = 200;
     let offset = 0;
@@ -214,9 +226,11 @@ export class YandexFleetProfileService {
             profile.dataHash = '';
             await this.yandexFleetProfileRepository.save(profile);
 
-            await this.bitrixService.updateDeal(profile.bitrixDealId, {
-              STAGE_ID: nextStage,
-            });
+            if (!isEatPark(park)) {
+              await this.bitrixService.updateDeal(profile.bitrixDealId, {
+                STAGE_ID: nextStage,
+              });
+            }
 
             updated++;
           } catch (error) {
@@ -242,6 +256,11 @@ export class YandexFleetProfileService {
     driver: YandexFleetDriverProfileItem,
     newOnly: boolean,
   ): Promise<void> {
+    if (isEatPark(park)) {
+      await this.processEatProfile(park, driver, newOnly);
+      return;
+    }
+
     let localState = await this.yandexFleetProfileRepository.findOneBy({
       yandexProfileId: driver.driver_profile.id,
     });
@@ -396,6 +415,134 @@ export class YandexFleetProfileService {
     }
     if (localState.fleetCreatedAt?.getTime() !== createdDate.getTime()) {
       localState.fleetCreatedAt = createdDate;
+      shouldSave = true;
+    }
+    if (applyBalanceToProfile(localState, driver.accounts)) {
+      shouldSave = true;
+    }
+
+    if (shouldSave) {
+      await this.yandexFleetProfileRepository.save(localState);
+    }
+  }
+
+  private async processEatProfile(
+    park: YandexFleetParkEntity,
+    driver: YandexFleetDriverProfileItem,
+    newOnly: boolean,
+  ): Promise<void> {
+    const localState = await this.yandexFleetProfileRepository.findOneBy({
+      yandexProfileId: driver.driver_profile.id,
+    });
+
+    if (newOnly && localState) return;
+
+    let driverCar = undefined;
+    if (driver.car?.id) {
+      driverCar = await this.yandexService.getCar(park, driver.car.id);
+    }
+
+    const driverProfile = await this.yandexService.getProfile(park, driver.driver_profile.id);
+
+    if ((driverProfile.person.driver_license.country as string) === 'vnm') {
+      driverProfile.person.driver_license.country = undefined;
+    }
+
+    const stages = getProfileStages(park);
+    const lastOrders = await this.yandexFleetOrderRepository.find({
+      where: { profileId: driver.driver_profile.id, parkId: park.id, status: OrderStatus.Complete },
+      order: { bookedAt: 'DESC' },
+      take: 30,
+    });
+
+    let stage: string = localState ? localState.bitrixStageId : stages.NotProcessed;
+    const createdDate = new Date(driver.driver_profile.created_date);
+    const hireDate = driverProfile.profile.hire_date
+      ? new Date(driverProfile.profile.hire_date)
+      : null;
+    const nextStage = this.yandexFleetOrderService.resolveNextStage(
+      park,
+      lastOrders,
+      hireDate ?? createdDate,
+    );
+
+    if (
+      driver.driver_profile.work_status &&
+      driver.driver_profile.work_status !== DriverWorkStatus.Working
+    ) {
+      stage = stages.Archive;
+    } else if (nextStage) {
+      stage = nextStage;
+    }
+
+    const lastOrderDate = lastOrders.length > 0 ? new Date(lastOrders[0].bookedAt) : null;
+    let firstOrderDate = localState?.firstOrderDate || null;
+
+    if (!firstOrderDate) {
+      const oldestLocalOrder = await this.yandexFleetOrderRepository.findOne({
+        where: {
+          profileId: driver.driver_profile.id,
+          parkId: park.id,
+          status: OrderStatus.Complete,
+        },
+        order: { bookedAt: 'ASC' },
+      });
+
+      if (oldestLocalOrder) {
+        firstOrderDate = oldestLocalOrder.bookedAt;
+      }
+    }
+
+    const currentHash = calculateDriverHash(driverProfile, driverCar, stage);
+
+    if (!localState) {
+      await this.localMapper.createProfile({
+        park,
+        profileId: driver.driver_profile.id,
+        driverProfile,
+        driverCar,
+        stage,
+        currentHash,
+        lastOrderDate,
+        firstOrderDate,
+        createdDate,
+        accounts: driver.accounts,
+      });
+      return;
+    }
+
+    if (localState.dataHash !== currentHash) {
+      await this.localMapper.updateProfile({
+        park,
+        driverProfile,
+        driverCar,
+        stage,
+        currentHash,
+        localState,
+        lastOrderDate,
+        firstOrderDate,
+        createdDate,
+        accounts: driver.accounts,
+      });
+      return;
+    }
+
+    let shouldSave = false;
+
+    if (localState.lastOrderDate?.getTime() !== lastOrderDate?.getTime()) {
+      localState.lastOrderDate = lastOrderDate;
+      shouldSave = true;
+    }
+    if (localState.firstOrderDate?.getTime() !== firstOrderDate?.getTime()) {
+      localState.firstOrderDate = firstOrderDate;
+      shouldSave = true;
+    }
+    if (localState.fleetCreatedAt?.getTime() !== createdDate.getTime()) {
+      localState.fleetCreatedAt = createdDate;
+      shouldSave = true;
+    }
+    if (localState.bitrixStageId !== stage) {
+      localState.bitrixStageId = stage;
       shouldSave = true;
     }
     if (applyBalanceToProfile(localState, driver.accounts)) {

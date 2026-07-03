@@ -1,6 +1,5 @@
 import { In, Repository } from 'typeorm';
 import { YandexFleetService } from '../common/yandex-fleet.service';
-import { BITRIX_CATEGORY_STAGE } from '../../bitrix/bitrix.type';
 import { OrderStatus, YandexFleetOrder } from './yandex-fleet-order.type';
 import { YandexFleetOrderEntity } from './yandex-fleet-order.entity';
 import { YandexFleetParkEntity } from '../park/yandex-fleet-park.entity';
@@ -10,7 +9,7 @@ import {
   YandexFleetSyncType,
   YandexFleetSyncStatus,
 } from '../entity/yandex-fleet-sync-state.entity';
-import { getBitrixCategory } from '../../bitrix/bitrix.utils';
+import { getProfileStages } from '../park/yandex-fleet-park-eat.utils';
 
 const PROFILE_LAST_ORDER_BATCH = 100;
 const SYNC_BUFFER_HOURS = 72;
@@ -28,7 +27,7 @@ export class YandexFleetOrderService {
     orders: YandexFleetOrderEntity[],
     hiredAt: Date,
   ): string | null {
-    const stages = getBitrixCategory(park.type);
+    const stages = getProfileStages(park);
 
     const activityStage = this.resolveActivityStage(orders, hiredAt, stages);
     if (activityStage) return activityStage;
@@ -42,7 +41,7 @@ export class YandexFleetOrderService {
   private resolveActivityStage(
     orders: YandexFleetOrderEntity[],
     hiredAt: Date,
-    stages: (typeof BITRIX_CATEGORY_STAGE)[keyof typeof BITRIX_CATEGORY_STAGE],
+    stages: { Cold: string; Outflow: string },
   ): string | null {
     const now = new Date();
 

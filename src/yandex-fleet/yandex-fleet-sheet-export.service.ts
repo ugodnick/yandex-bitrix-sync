@@ -36,6 +36,7 @@ export class YandexFleetSheetExportService {
     const parks = await this.yandexFleetParkRepository.find();
     const taxiParks = parks.filter((p) => p.type === YandexFleetParkType.Taxi);
     const deliveryParks = parks.filter((p) => p.type === YandexFleetParkType.Delivery);
+    const eatParks = parks.filter((p) => p.type === YandexFleetParkType.Eat);
 
     await this.exportContractors(deliveryParks, SheetType.Delivery);
     await this.exportOrders(deliveryParks, SheetType.Delivery);
@@ -54,6 +55,15 @@ export class YandexFleetSheetExportService {
     await this.googleSheetsApiService.renameSpreadsheet(
       SheetType.Taxi,
       `Выгрузка Диспетчерской Такси — ${today}`,
+    );
+
+    await this.exportContractors(eatParks, SheetType.Eat);
+    await this.exportOrders(eatParks, SheetType.Eat);
+    await this.exportTransactions(eatParks, SheetType.Eat);
+
+    await this.googleSheetsApiService.renameSpreadsheet(
+      SheetType.Eat,
+      `Выгрузка Диспетчерской Еда — ${today}`,
     );
   }
 
@@ -257,16 +267,27 @@ export class YandexFleetSheetExportService {
   async exportSupplyHoursMonth(parks: YandexFleetParkEntity[]): Promise<void> {
     const { periodFrom, periodTo } = getPreviousMonthBoundsInVladivostok();
 
+    const deliveryParks = parks.filter((p) => p.type === YandexFleetParkType.Delivery);
+    const taxiParks = parks.filter((p) => p.type === YandexFleetParkType.Taxi);
+    const eatParks = parks.filter((p) => p.type === YandexFleetParkType.Eat);
+
     await this.exportSupplyHours(
-      parks,
+      deliveryParks,
       SheetType.Delivery,
       YandexFleetSheetName.SupplyHoursMonth,
       periodFrom,
       periodTo,
     );
     await this.exportSupplyHours(
-      parks,
+      taxiParks,
       SheetType.Taxi,
+      YandexFleetSheetName.SupplyHoursMonth,
+      periodFrom,
+      periodTo,
+    );
+    await this.exportSupplyHours(
+      eatParks,
+      SheetType.Eat,
       YandexFleetSheetName.SupplyHoursMonth,
       periodFrom,
       periodTo,
@@ -278,6 +299,7 @@ export class YandexFleetSheetExportService {
 
     const taxiParks = parks.filter((p) => p.type === YandexFleetParkType.Taxi);
     const deliveryParks = parks.filter((p) => p.type === YandexFleetParkType.Delivery);
+    const eatParks = parks.filter((p) => p.type === YandexFleetParkType.Eat);
 
     await this.exportSupplyHours(
       deliveryParks,
@@ -289,6 +311,13 @@ export class YandexFleetSheetExportService {
     await this.exportSupplyHours(
       taxiParks,
       SheetType.Taxi,
+      YandexFleetSheetName.SupplyHoursDay,
+      periodFrom,
+      periodTo,
+    );
+    await this.exportSupplyHours(
+      eatParks,
+      SheetType.Eat,
       YandexFleetSheetName.SupplyHoursDay,
       periodFrom,
       periodTo,
@@ -300,6 +329,7 @@ export class YandexFleetSheetExportService {
 
     const taxiParks = parks.filter((p) => p.type === YandexFleetParkType.Taxi);
     const deliveryParks = parks.filter((p) => p.type === YandexFleetParkType.Delivery);
+    const eatParks = parks.filter((p) => p.type === YandexFleetParkType.Eat);
 
     await this.exportSupplyHours(
       deliveryParks,
@@ -311,6 +341,13 @@ export class YandexFleetSheetExportService {
     await this.exportSupplyHours(
       taxiParks,
       SheetType.Taxi,
+      YandexFleetSheetName.SupplyWeekMonth,
+      periodFrom,
+      periodTo,
+    );
+    await this.exportSupplyHours(
+      eatParks,
+      SheetType.Eat,
       YandexFleetSheetName.SupplyWeekMonth,
       periodFrom,
       periodTo,

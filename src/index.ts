@@ -150,6 +150,7 @@ function initServices(database: DataSource): void {
         keyFilePath: join(__dirname, '..', 'google-sheets-credentials.json'),
         taxiSpreadsheetId: config.googleSheetsTaxiSheetId,
         deliverySpreadsheetId: config.googleSheetsDeliverySheetId,
+        eatSpreadsheetId: config.googleSheetsEatSheetId,
         bitrixSpreadsheetId: config.googleSheetsBitrixSheetId,
       }),
   );

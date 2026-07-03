@@ -21,11 +21,18 @@ export class GoogleSheetsAPIService {
   private readonly sheets: sheets_v4.Sheets;
   private readonly deliverySpreadsheetId: string;
   private readonly taxiSpreadsheetId: string;
+  private readonly eatSpreadsheetId: string;
   private readonly bitrixSpreadsheetId: string;
   private readonly valueInputOption: 'RAW' | 'USER_ENTERED';
 
   constructor(options: GoogleSheetsAPIServiceOptions) {
-    const { keyFilePath, deliverySpreadsheetId, taxiSpreadsheetId, bitrixSpreadsheetId } = options;
+    const {
+      keyFilePath,
+      deliverySpreadsheetId,
+      taxiSpreadsheetId,
+      eatSpreadsheetId,
+      bitrixSpreadsheetId,
+    } = options;
 
     if (!fs.existsSync(keyFilePath)) {
       throw new Error(`Service account key file not found at: ${path.resolve(keyFilePath)}`);
@@ -39,6 +46,7 @@ export class GoogleSheetsAPIService {
     this.sheets = google.sheets({ version: 'v4', auth: auth as unknown as JWT });
     this.deliverySpreadsheetId = deliverySpreadsheetId;
     this.taxiSpreadsheetId = taxiSpreadsheetId;
+    this.eatSpreadsheetId = eatSpreadsheetId;
     this.bitrixSpreadsheetId = bitrixSpreadsheetId;
     this.valueInputOption = options.valueInputOption ?? 'RAW';
   }
@@ -259,6 +267,8 @@ export class GoogleSheetsAPIService {
         return this.deliverySpreadsheetId;
       case SheetType.Taxi:
         return this.taxiSpreadsheetId;
+      case SheetType.Eat:
+        return this.eatSpreadsheetId;
       case SheetType.Bitrix:
         return this.bitrixSpreadsheetId;
       default:

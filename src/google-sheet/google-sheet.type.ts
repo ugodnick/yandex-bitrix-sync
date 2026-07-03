@@ -10,6 +10,7 @@ export enum YandexFleetSheetName {
 export enum SheetType {
   Delivery = 'delivery',
   Taxi = 'taxi',
+  Eat = 'eat',
   Bitrix = 'bitrix',
 }
 
@@ -247,6 +248,7 @@ export interface GoogleSheetsAPIServiceOptions {
   keyFilePath: string;
   deliverySpreadsheetId: string;
   taxiSpreadsheetId: string;
+  eatSpreadsheetId: string;
   bitrixSpreadsheetId: string;
   valueInputOption?: 'RAW' | 'USER_ENTERED';
 }

@@ -1,4 +1,5 @@
 import { getBitrixCategory } from '../../bitrix/bitrix.utils';
+import { EAT_PROFILE_STAGES } from '../park/yandex-fleet-park-eat.utils';
 import { YandexFleetParkType } from '../park/yandex-fleet-park.entity';
 
 export enum ProfileStatus {
@@ -11,7 +12,29 @@ export enum ProfileStatus {
   Unknown = 'Неизвестно',
 }
 
+function eatStageToStatus(stageId: string): ProfileStatus {
+  switch (stageId) {
+    case EAT_PROFILE_STAGES.NotProcessed:
+    case EAT_PROFILE_STAGES.Orders25:
+      return ProfileStatus.New;
+    case EAT_PROFILE_STAGES.Working:
+      return ProfileStatus.Active;
+    case EAT_PROFILE_STAGES.Outflow:
+      return ProfileStatus.Outflow;
+    case EAT_PROFILE_STAGES.Cold:
+      return ProfileStatus.Cold;
+    case EAT_PROFILE_STAGES.Archive:
+      return ProfileStatus.Archive;
+    default:
+      return ProfileStatus.Unknown;
+  }
+}
+
 export function stageToStatus(parkType: YandexFleetParkType, stageId: string): ProfileStatus {
+  if (parkType === YandexFleetParkType.Eat) {
+    return eatStageToStatus(stageId);
+  }
+
   const stages = getBitrixCategory(parkType);
   switch (stageId) {
     case stages.NotProcessed:
