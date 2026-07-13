@@ -25,6 +25,8 @@ import { YandexFleetParkEntity } from './yandex-fleet/park/yandex-fleet-park.ent
 import { YandexFleetSyncStateEntity } from './yandex-fleet/entity/yandex-fleet-sync-state.entity';
 import { YandexFleetTransactionService } from './yandex-fleet/transaction/yandex-fleet-transaction.service';
 import { YandexFleetTransactionEntity } from './yandex-fleet/transaction/yandex-fleet-transaction.entity';
+import { YandexFleetSupplyHoursEntity } from './yandex-fleet/supply-hours/yandex-fleet-supply-hours.entity';
+import { YandexFleetSupplyHoursService } from './yandex-fleet/supply-hours/yandex-fleet-supply-hours.service';
 import { BitrixSheetExportService } from './bitrix/bitrix-sheet-export.service';
 import { BitrixSyncService } from './bitrix/bitrix-sync.service';
 import { BitrixContactEntity } from './bitrix/entity/bitrix-contact.entity';
@@ -69,6 +71,7 @@ function initServices(database: DataSource): void {
   const yandexFleetOrderRepository = database.getRepository(YandexFleetOrderEntity);
   const yandexFleetsyncStateRepository = database.getRepository(YandexFleetSyncStateEntity);
   const yandexFleetTransactionRepository = database.getRepository(YandexFleetTransactionEntity);
+  const yandexFleetSupplyHoursRepository = database.getRepository(YandexFleetSupplyHoursEntity);
   yandexFleetParkRepository = database.getRepository(YandexFleetParkEntity);
 
   container.add(YandexFleetService, () => new YandexFleetService());
@@ -175,6 +178,15 @@ function initServices(database: DataSource): void {
       ),
   );
   container.add(
+    YandexFleetSupplyHoursService,
+    () =>
+      new YandexFleetSupplyHoursService(
+        yandexFleetSupplyHoursRepository,
+        yandexFleetProfileRepository,
+        container.get(YandexFleetService),
+      ),
+  );
+  container.add(
     YandexFleetSheetExportService,
     () =>
       new YandexFleetSheetExportService(
@@ -184,7 +196,7 @@ function initServices(database: DataSource): void {
         yandexFleetParkRepository,
         yandexFleetTransactionRepository,
         container.get(GoogleSheetsAPIService),
-        container.get(YandexFleetService),
+        container.get(YandexFleetSupplyHoursService),
       ),
   );
 }
@@ -207,30 +219,33 @@ function scheduleGoogleSheetExport() {
 
 function scheduleSupplyHoursSync() {
   const queue = new Queue('scheduleSupplyHoursSync');
-  const runSync = async (mode: string) => {
+
+  const runSyncIfNeeded = async (mode: 'month' | 'week' | 'day') => {
     const exportService = container.get(YandexFleetSheetExportService);
     const parks = await getActiveParks();
+
+    if (await exportService.isSupplyHoursExportComplete(parks, mode)) {
+      return;
+    }
 
     if (mode === 'month') {
       await exportService.exportSupplyHoursMonth(parks);
     } else if (mode === 'week') {
       await exportService.exportSupplyWeekly(parks);
-    } else if (mode === 'day') {
+    } else {
       await exportService.exportSupplyHoursDay(parks);
     }
   };
-  cron.schedule('0 0 5 * *', () => queue.enqueue('month', () => runSync('month')), {
-    timezone: 'Asia/Vladivostok',
-    runOnInit: false,
-  });
-  cron.schedule('0 8 * * 2', () => queue.enqueue('week', () => runSync('week')), {
-    timezone: 'Asia/Vladivostok',
-    runOnInit: false,
-  });
-  cron.schedule('0 5 * * *', () => queue.enqueue('day', () => runSync('day')), {
-    timezone: 'Asia/Vladivostok',
-    runOnInit: false,
-  });
+
+  cron.schedule(
+    '0 1 * * *',
+    () => {
+      queue.enqueue('supply-hours-month', () => runSyncIfNeeded('month'));
+      queue.enqueue('supply-hours-week', () => runSyncIfNeeded('week'));
+      queue.enqueue('supply-hours-day', () => runSyncIfNeeded('day'));
+    },
+    { timezone: 'Asia/Vladivostok', runOnInit: false },
+  );
 }
 
 function scheduleParksProfilesSync() {

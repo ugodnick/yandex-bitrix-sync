@@ -16,10 +16,11 @@ import {
 import { formatBalanceForSheet } from './profile/yandex-fleet-profile-balance.utils';
 import { YandexFleetWorkRuleEntity } from './work-rule/yandex-fleet-work-rule.entity';
 import { YandexFleetOrderEntity } from './order/yandex-fleet-order.entity';
-import { YandexFleetService } from './common/yandex-fleet.service';
 import { YandexFleetParkEntity, YandexFleetParkType } from './park/yandex-fleet-park.entity';
 import Big from 'big.js';
 import { YandexFleetTransactionEntity } from './transaction/yandex-fleet-transaction.entity';
+import { YandexFleetSupplyHoursService } from './supply-hours/yandex-fleet-supply-hours.service';
+import { YandexFleetSupplyHoursPeriodType } from './supply-hours/yandex-fleet-supply-hours.entity';
 
 export class YandexFleetSheetExportService {
   constructor(
@@ -29,7 +30,7 @@ export class YandexFleetSheetExportService {
     private readonly yandexFleetParkRepository: Repository<YandexFleetParkEntity>,
     private readonly yandexFleetTransactionRepository: Repository<YandexFleetTransactionEntity>,
     private readonly googleSheetsApiService: GoogleSheetsAPIService,
-    private readonly yandexService: YandexFleetService,
+    private readonly supplyHoursService: YandexFleetSupplyHoursService,
   ) {}
 
   async exportToGoogleSheets(): Promise<void> {
@@ -275,6 +276,7 @@ export class YandexFleetSheetExportService {
       deliveryParks,
       SheetType.Delivery,
       YandexFleetSheetName.SupplyHoursMonth,
+      YandexFleetSupplyHoursPeriodType.Month,
       periodFrom,
       periodTo,
     );
@@ -282,6 +284,7 @@ export class YandexFleetSheetExportService {
       taxiParks,
       SheetType.Taxi,
       YandexFleetSheetName.SupplyHoursMonth,
+      YandexFleetSupplyHoursPeriodType.Month,
       periodFrom,
       periodTo,
     );
@@ -289,6 +292,7 @@ export class YandexFleetSheetExportService {
       eatParks,
       SheetType.Eat,
       YandexFleetSheetName.SupplyHoursMonth,
+      YandexFleetSupplyHoursPeriodType.Month,
       periodFrom,
       periodTo,
     );
@@ -305,6 +309,7 @@ export class YandexFleetSheetExportService {
       deliveryParks,
       SheetType.Delivery,
       YandexFleetSheetName.SupplyHoursDay,
+      YandexFleetSupplyHoursPeriodType.Day,
       periodFrom,
       periodTo,
     );
@@ -312,6 +317,7 @@ export class YandexFleetSheetExportService {
       taxiParks,
       SheetType.Taxi,
       YandexFleetSheetName.SupplyHoursDay,
+      YandexFleetSupplyHoursPeriodType.Day,
       periodFrom,
       periodTo,
     );
@@ -319,6 +325,7 @@ export class YandexFleetSheetExportService {
       eatParks,
       SheetType.Eat,
       YandexFleetSheetName.SupplyHoursDay,
+      YandexFleetSupplyHoursPeriodType.Day,
       periodFrom,
       periodTo,
     );
@@ -335,6 +342,7 @@ export class YandexFleetSheetExportService {
       deliveryParks,
       SheetType.Delivery,
       YandexFleetSheetName.SupplyWeekMonth,
+      YandexFleetSupplyHoursPeriodType.Week,
       periodFrom,
       periodTo,
     );
@@ -342,6 +350,7 @@ export class YandexFleetSheetExportService {
       taxiParks,
       SheetType.Taxi,
       YandexFleetSheetName.SupplyWeekMonth,
+      YandexFleetSupplyHoursPeriodType.Week,
       periodFrom,
       periodTo,
     );
@@ -349,9 +358,50 @@ export class YandexFleetSheetExportService {
       eatParks,
       SheetType.Eat,
       YandexFleetSheetName.SupplyWeekMonth,
+      YandexFleetSupplyHoursPeriodType.Week,
       periodFrom,
       periodTo,
     );
+  }
+
+  async isSupplyHoursExportComplete(
+    parks: YandexFleetParkEntity[],
+    mode: 'month' | 'week' | 'day',
+  ): Promise<boolean> {
+    const periodBounds =
+      mode === 'month'
+        ? getPreviousMonthBoundsInVladivostok()
+        : mode === 'week'
+          ? getPreviousWeekBoundsInVladivostok()
+          : getPreviousDayBoundsInVladivostok();
+
+    const periodType =
+      mode === 'month'
+        ? YandexFleetSupplyHoursPeriodType.Month
+        : mode === 'week'
+          ? YandexFleetSupplyHoursPeriodType.Week
+          : YandexFleetSupplyHoursPeriodType.Day;
+
+    const { periodFrom, periodTo } = periodBounds;
+    const parkGroups = [
+      parks.filter((p) => p.type === YandexFleetParkType.Delivery),
+      parks.filter((p) => p.type === YandexFleetParkType.Taxi),
+      parks.filter((p) => p.type === YandexFleetParkType.Eat),
+    ];
+
+    for (const group of parkGroups) {
+      if (group.length === 0) continue;
+
+      const complete = await this.supplyHoursService.isPeriodSyncComplete(
+        group,
+        periodType,
+        periodFrom,
+        periodTo,
+      );
+      if (!complete) return false;
+    }
+
+    return true;
   }
 
   private async exportSupplyHours(
@@ -361,44 +411,41 @@ export class YandexFleetSheetExportService {
       | YandexFleetSheetName.SupplyHoursMonth
       | YandexFleetSheetName.SupplyWeekMonth
       | YandexFleetSheetName.SupplyHoursDay,
+    periodType: YandexFleetSupplyHoursPeriodType,
     periodFrom: Date,
     periodTo: Date,
   ): Promise<void> {
-    const BATCH_SIZE = 200;
-    let offset = 0;
-    const allRows: (string | number)[][] = [];
+    const stats = await this.supplyHoursService.syncSupplyHours(
+      parks,
+      periodType,
+      periodFrom,
+      periodTo,
+    );
 
-    while (true) {
-      const profiles = await this.yandexFleetProfileRepository.find({
-        where: { lastOrderDate: MoreThan(periodFrom), parkId: In(parks.map((p) => p.id)) },
-        order: { yandexProfileId: 'ASC' },
-        relations: { park: true },
-        take: BATCH_SIZE,
-        skip: offset,
-      });
+    const isComplete = await this.supplyHoursService.isPeriodSyncComplete(
+      parks,
+      periodType,
+      periodFrom,
+      periodTo,
+    );
 
-      if (profiles.length === 0) break;
+    console.log(
+      `[YandexFleetSheetExportService] Синк ${sheetName} (${sheetType}): обработано ${stats.total}, синхронизировано ${stats.synced}, ошибок ${stats.failed}, завершён: ${isComplete}`,
+    );
 
-      for (const profile of profiles) {
-        try {
-          const supplyHours = await this.yandexService.getDriverSupplyHours(
-            profile.park,
-            profile.yandexProfileId,
-            periodFrom,
-            periodTo,
-          );
-          const hours = Math.round(supplyHours.supply_duration_seconds / 3600);
-          allRows.push([profile.yandexProfileId, hours]);
-        } catch (error) {
-          console.warn(
-            `[YandexFleetSheetExportService] Не удалось получить время для ${profile.yandexProfileId}:`,
-            error,
-          );
-        }
-      }
-
-      offset += BATCH_SIZE;
+    if (!isComplete) {
+      console.warn(
+        `[YandexFleetSheetExportService] Синк ${sheetName} (${sheetType}) не завершён — таблица не обновлена. Повторите позже для дозагрузки.`,
+      );
+      return;
     }
+
+    const allRows = await this.supplyHoursService.getExportRows(
+      parks,
+      periodType,
+      periodFrom,
+      periodTo,
+    );
 
     await this.googleSheetsApiService.truncateSheet(sheetName, sheetType, 1);
     await this.googleSheetsApiService.ensureHeaders(sheetName, sheetType);
