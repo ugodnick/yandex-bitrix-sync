@@ -29,7 +29,7 @@ export class YandexFleetSupplyHoursService {
 
     return this.profileRepository
       .createQueryBuilder('profile')
-      .where('profile.park_id IN (:...parkIds)', { parkIds })
+      .where('profile.parkId IN (:...parkIds)', { parkIds })
       .andWhere(
         `EXISTS (
           SELECT 1 FROM yandex_fleet_order o
@@ -57,14 +57,14 @@ export class YandexFleetSupplyHoursService {
         WHERE sh.profile_id = profile.yandex_profile_id
           AND sh.park_id = profile.park_id
           AND sh.period_type = :periodType
-          AND sh.period_from = :periodFrom
-          AND sh.period_to = :periodTo
+          AND sh.period_from = :shPeriodFrom
+          AND sh.period_to = :shPeriodTo
           AND sh.status = :successStatus
       )`,
       {
         periodType,
-        periodFrom: periodFromIso,
-        periodTo: periodToIso,
+        shPeriodFrom: periodFromIso,
+        shPeriodTo: periodToIso,
         successStatus: YandexFleetSupplyHoursStatus.Success,
       },
     );
@@ -85,7 +85,7 @@ export class YandexFleetSupplyHoursService {
     while (true) {
       const profiles = await this.unsyncedProfilesQuery(parkIds, periodType, periodFrom, periodTo)
         .leftJoinAndSelect('profile.park', 'park')
-        .orderBy('profile.yandex_profile_id', 'ASC')
+        .orderBy('profile.yandexProfileId', 'ASC')
         .take(YandexFleetSupplyHoursService.BATCH_SIZE)
         .skip(offset)
         .getMany();
@@ -182,7 +182,7 @@ export class YandexFleetSupplyHoursService {
       .andWhere('supply_hours.period_from = :periodFrom', { periodFrom: periodFrom.toISOString() })
       .andWhere('supply_hours.period_to = :periodTo', { periodTo: periodTo.toISOString() })
       .andWhere('supply_hours.status = :status', { status: YandexFleetSupplyHoursStatus.Success })
-      .orderBy('supply_hours.profile_id', 'ASC')
+      .orderBy('supply_hours.profileId', 'ASC')
       .getMany();
 
     return records.map((record) => [
