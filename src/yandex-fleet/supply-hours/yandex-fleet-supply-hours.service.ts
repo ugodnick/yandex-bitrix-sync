@@ -14,6 +14,11 @@ export interface SupplyHoursSyncStats {
   failed: number;
 }
 
+/** SQLite/TypeORM хранит datetime как `YYYY-MM-DD HH:mm:ss.sss`, не как ISO с T/Z. */
+function toDbDateTime(date: Date): string {
+  return date.toISOString().replace('T', ' ').replace(/Z$/, '');
+}
+
 export class YandexFleetSupplyHoursService {
   private static readonly BATCH_SIZE = 200;
 
@@ -24,9 +29,6 @@ export class YandexFleetSupplyHoursService {
   ) {}
 
   private eligibleProfilesQuery(parkIds: string[], periodFrom: Date, periodTo: Date) {
-    const periodFromIso = periodFrom.toISOString();
-    const periodToIso = periodTo.toISOString();
-
     return this.profileRepository
       .createQueryBuilder('profile')
       .where('profile.parkId IN (:...parkIds)', { parkIds })
@@ -38,7 +40,7 @@ export class YandexFleetSupplyHoursService {
             AND o.booked_at > :periodFrom
             AND o.booked_at < :periodTo
         )`,
-        { periodFrom: periodFromIso, periodTo: periodToIso },
+        { periodFrom: toDbDateTime(periodFrom), periodTo: toDbDateTime(periodTo) },
       );
   }
 
@@ -48,9 +50,6 @@ export class YandexFleetSupplyHoursService {
     periodFrom: Date,
     periodTo: Date,
   ) {
-    const periodFromIso = periodFrom.toISOString();
-    const periodToIso = periodTo.toISOString();
-
     return this.eligibleProfilesQuery(parkIds, periodFrom, periodTo).andWhere(
       `NOT EXISTS (
         SELECT 1 FROM yandex_fleet_supply_hours sh
@@ -63,8 +62,8 @@ export class YandexFleetSupplyHoursService {
       )`,
       {
         periodType,
-        shPeriodFrom: periodFromIso,
-        shPeriodTo: periodToIso,
+        shPeriodFrom: toDbDateTime(periodFrom),
+        shPeriodTo: toDbDateTime(periodTo),
         successStatus: YandexFleetSupplyHoursStatus.Success,
       },
     );
@@ -177,10 +176,12 @@ export class YandexFleetSupplyHoursService {
   ): Promise<(string | number)[][]> {
     const records = await this.supplyHoursRepository
       .createQueryBuilder('supply_hours')
-      .where('supply_hours.park_id IN (:...parkIds)', { parkIds: parks.map((p) => p.id) })
-      .andWhere('supply_hours.period_type = :periodType', { periodType })
-      .andWhere('supply_hours.period_from = :periodFrom', { periodFrom: periodFrom.toISOString() })
-      .andWhere('supply_hours.period_to = :periodTo', { periodTo: periodTo.toISOString() })
+      .where('supply_hours.parkId IN (:...parkIds)', { parkIds: parks.map((p) => p.id) })
+      .andWhere('supply_hours.periodType = :periodType', { periodType })
+      .andWhere('supply_hours.periodFrom = :periodFrom', {
+        periodFrom: toDbDateTime(periodFrom),
+      })
+      .andWhere('supply_hours.periodTo = :periodTo', { periodTo: toDbDateTime(periodTo) })
       .andWhere('supply_hours.status = :status', { status: YandexFleetSupplyHoursStatus.Success })
       .orderBy('supply_hours.profileId', 'ASC')
       .getMany();

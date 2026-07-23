@@ -224,10 +224,6 @@ function scheduleSupplyHoursSync() {
     const exportService = container.get(YandexFleetSheetExportService);
     const parks = await getActiveParks();
 
-    if (await exportService.isSupplyHoursExportComplete(parks, mode)) {
-      return;
-    }
-
     if (mode === 'month') {
       await exportService.exportSupplyHoursMonth(parks);
     } else if (mode === 'week') {
