@@ -23,6 +23,9 @@ export class YandexFleetParkEntity {
   @Column({ type: 'varchar', name: 'type' })
   type: YandexFleetParkType;
 
+  @Column({ type: 'varchar', name: 'timezone', default: 'Asia/Vladivostok' })
+  timezone: string;
+
   @Column({ type: 'varchar', name: 'api_key' })
   apiKey: string;
 

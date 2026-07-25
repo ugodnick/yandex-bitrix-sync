@@ -209,7 +209,7 @@ export class YandexFleetProfileBitrixMapper {
         fullName: flat.lastName + ' ' + flat.firstName + ' ' + (flat.middleName || ''),
         park: park.name,
         employmentType: flat.employmentType,
-        createdDate: formatDateInTz(createdDate, true),
+        createdDate: formatDateInTz(createdDate, true, park.timezone),
       }),
     );
 
