@@ -32,6 +32,7 @@ export class YandexFleetOrderService {
     const activityStage = this.resolveActivityStage(orders, hiredAt, stages);
     if (activityStage) return activityStage;
 
+    if ('Orders100' in stages && stages.Orders100 && orders.length > 100) return stages.Orders100;
     if (orders.length > 25) return stages.Working;
     if (orders.length > 0) return stages.Orders25;
 

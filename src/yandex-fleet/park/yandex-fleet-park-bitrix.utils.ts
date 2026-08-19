@@ -7,9 +7,7 @@ export const mapCategory = (
 ): (typeof BitrixDealCategory)[keyof typeof BitrixDealCategory] => {
   if (parkType === YandexFleetParkType.Delivery) return BitrixDealCategory.YANDEX_DELIVERY;
   if (parkType === YandexFleetParkType.Taxi) return BitrixDealCategory.YANDEX_TAXI;
-  if (parkType === YandexFleetParkType.Eat) {
-    throw new Error('Eat park type is not synced to Bitrix');
-  }
+  if (parkType === YandexFleetParkType.Eat) return BitrixDealCategory.YANDEX_EAT;
 
   throw new Error('No such park type in constants');
 };
@@ -19,9 +17,7 @@ export const mapAggregator = (
 ): (typeof BITRIX_DICT.AGGREGATOR)[keyof typeof BITRIX_DICT.AGGREGATOR] => {
   if (parkType === YandexFleetParkType.Delivery) return BITRIX_DICT.AGGREGATOR.YANDEX_DELIVERY;
   if (parkType === YandexFleetParkType.Taxi) return BITRIX_DICT.AGGREGATOR.YANDEX_TAXI;
-  if (parkType === YandexFleetParkType.Eat) {
-    throw new Error('Eat park type is not synced to Bitrix');
-  }
+  if (parkType === YandexFleetParkType.Eat) return BITRIX_DICT.AGGREGATOR.YANDEX_EDA;
 
   throw new Error('No such park type in constants');
 };

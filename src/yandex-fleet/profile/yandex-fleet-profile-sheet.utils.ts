@@ -1,5 +1,4 @@
 import { getBitrixCategory } from '../../bitrix/bitrix.utils';
-import { EAT_PROFILE_STAGES } from '../park/yandex-fleet-park-eat.utils';
 import { YandexFleetParkType } from '../park/yandex-fleet-park.entity';
 
 export enum ProfileStatus {
@@ -13,17 +12,38 @@ export enum ProfileStatus {
 }
 
 function eatStageToStatus(stageId: string): ProfileStatus {
+  const eatStages = getBitrixCategory(YandexFleetParkType.Eat) as ReturnType<
+    typeof getBitrixCategory
+  > & {
+    Orders100?: string;
+  };
   switch (stageId) {
-    case EAT_PROFILE_STAGES.NotProcessed:
-    case EAT_PROFILE_STAGES.Orders25:
+    case eatStages.NotProcessed:
+    case eatStages.TakenToWork:
+    case eatStages.CallBack:
+    case eatStages.NdzLead:
+    case eatStages.Thinking:
+    case eatStages.DocumentCollection:
+    case eatStages.TransferToSmz:
+    case eatStages.OutputFor1Order:
+    case eatStages.NdzNotComeOut:
       return ProfileStatus.New;
-    case EAT_PROFILE_STAGES.Working:
+    case eatStages.Orders25:
+    case eatStages.Working:
+    case eatStages.Orders100:
       return ProfileStatus.Active;
-    case EAT_PROFILE_STAGES.Outflow:
+    case eatStages.Outflow:
       return ProfileStatus.Outflow;
-    case EAT_PROFILE_STAGES.Cold:
+    case eatStages.Cold:
       return ProfileStatus.Cold;
-    case EAT_PROFILE_STAGES.Archive:
+    case eatStages.Pause:
+      return ProfileStatus.Pause;
+    case eatStages.Archive:
+    case eatStages.Cps:
+    case eatStages.Duplicates:
+    case eatStages.DoNotClick:
+    case eatStages.SpamAdvertisingIlliquid:
+    case eatStages.Refusal:
       return ProfileStatus.Archive;
     default:
       return ProfileStatus.Unknown;

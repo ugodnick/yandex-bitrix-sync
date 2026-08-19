@@ -11,6 +11,7 @@ const STAGE_NAME_BY_KEY: Record<string, string> = {
   OutputFor1Order: 'Вывод на 1 заказ',
   NdzNotComeOut: 'НДЗ не вышедший',
   Orders25: '1-25 заказов',
+  Orders100: '100 заказов',
   Working: 'Работает',
   Outflow: 'Отток',
   Pause: 'Пауза',
@@ -31,6 +32,8 @@ function buildStageLabels(): Record<string, string> {
       labels[statusId] = STAGE_NAME_BY_KEY[key] ?? statusId;
     }
   }
+
+  labels['C7:UC_13XQNY'] = 'Приедет в офис';
 
   return labels;
 }
