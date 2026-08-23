@@ -31,7 +31,7 @@ import { BitrixSheetName, SheetType } from '../src/google-sheet/google-sheet.typ
 dotenv.config();
 
 const APPLY = process.argv.includes('--apply');
-const DAYS = 2;
+const DAYS = 5;
 const DB_PATH = process.env.SQLITE_PATH || 'data/database.sqlite';
 const PROFILE_ID_COL = 5; // NewDealsColumn.ProfileId
 
