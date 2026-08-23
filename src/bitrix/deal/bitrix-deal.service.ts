@@ -31,6 +31,7 @@ export class BitrixDealService {
     categories: BitrixDealCategory[] = [
       BitrixDealCategory.YANDEX_DELIVERY,
       BitrixDealCategory.YANDEX_TAXI,
+      BitrixDealCategory.YANDEX_EAT,
     ],
   ): Promise<BitrixDealFields[]> {
     try {
@@ -84,7 +85,11 @@ export class BitrixDealService {
           {
             params: {
               filter: {
-                CATEGORY_ID: [BitrixDealCategory.YANDEX_DELIVERY, BitrixDealCategory.YANDEX_TAXI],
+                CATEGORY_ID: [
+                  BitrixDealCategory.YANDEX_DELIVERY,
+                  BitrixDealCategory.YANDEX_TAXI,
+                  BitrixDealCategory.YANDEX_EAT,
+                ],
                 '>DATE_MODIFY': modifiedSince,
               },
               order: { DATE_MODIFY: 'ASC' },
@@ -129,7 +134,11 @@ export class BitrixDealService {
             params: {
               filter: {
                 CONTACT_ID: contactId,
-                CATEGORY_ID: [BitrixDealCategory.YANDEX_DELIVERY, BitrixDealCategory.YANDEX_TAXI],
+                CATEGORY_ID: [
+                  BitrixDealCategory.YANDEX_DELIVERY,
+                  BitrixDealCategory.YANDEX_TAXI,
+                  BitrixDealCategory.YANDEX_EAT,
+                ],
               },
               order: { ID: 'DESC' },
               select: ['*', 'UF_*'],
