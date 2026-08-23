@@ -183,4 +183,16 @@ export class BitrixDealService {
       throw buildError(error, BitrixDealService.name);
     }
   }
+
+  async delete(id: string | number): Promise<boolean> {
+    try {
+      const data = await this.client.post<UpdateEntityResponse>('crm.deal.delete.json', { id });
+      return data.result || false;
+    } catch (error) {
+      if (isAxiosError(error)) {
+        console.error('deleteDeal error:', error?.response?.data || error);
+      }
+      throw buildError(error, BitrixDealService.name);
+    }
+  }
 }
