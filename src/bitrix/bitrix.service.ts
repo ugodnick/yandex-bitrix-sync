@@ -52,10 +52,6 @@ export class BitrixService {
     return this.deals.update(id, fields);
   }
 
-  deleteDeal(id: string | number): Promise<boolean> {
-    return this.deals.delete(id);
-  }
-
   getUserField(id: string | number) {
     return this.userFields.get(id);
   }

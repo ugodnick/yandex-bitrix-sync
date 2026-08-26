@@ -323,6 +323,7 @@ export class YandexFleetProfileService {
 
       if (result.kind === 'linked') {
         localState = result.state;
+        localState.dataHash = '';
       } else if (result.kind === 'contact-only') {
         existingContactId = result.contactId;
       }
