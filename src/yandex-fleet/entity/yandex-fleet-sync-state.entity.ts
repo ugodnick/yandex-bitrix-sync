@@ -13,6 +13,7 @@ import { YandexFleetParkEntity } from '../park/yandex-fleet-park.entity';
 
 export enum YandexFleetSyncType {
   Orders = 'orders',
+  OrdersCancellationBackfill = 'orders_cancellation_backfill',
   ProfilesNew = 'profiles_new',
   ProfilesExisting = 'profiles_existing',
   Transactions = 'transactions',

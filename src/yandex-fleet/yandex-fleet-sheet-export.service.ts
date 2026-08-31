@@ -235,6 +235,7 @@ export class YandexFleetSheetExportService {
       bonus,
       o.id,
       park.name,
+      o.cancellationDescription ?? '',
     ];
   }
 

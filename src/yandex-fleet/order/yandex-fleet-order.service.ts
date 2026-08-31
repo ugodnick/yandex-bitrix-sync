@@ -13,6 +13,8 @@ import { getProfileStages } from '../park/yandex-fleet-park-eat.utils';
 
 const PROFILE_LAST_ORDER_BATCH = 100;
 const SYNC_BUFFER_HOURS = 72;
+/** One-time lookback to fill cancellation_description for recently cancelled orders. */
+const CANCELLATION_BACKFILL_DAYS = 30;
 
 export class YandexFleetOrderService {
   constructor(
@@ -70,9 +72,25 @@ export class YandexFleetOrderService {
       where: { parkId: park.id, syncType: YandexFleetSyncType.Orders },
     });
 
-    const from = state?.lastSyncedTo
+    const cancellationBackfillState = await this.syncStateRepository.findOne({
+      where: { parkId: park.id, syncType: YandexFleetSyncType.OrdersCancellationBackfill },
+    });
+    const needsCancellationBackfill = !cancellationBackfillState?.lastSyncedTo;
+
+    let from = state?.lastSyncedTo
       ? new Date(state.lastSyncedTo.getTime() - bufferOverlap)
       : fallback;
+
+    if (needsCancellationBackfill) {
+      const backfillFrom = new Date(startedAt);
+      backfillFrom.setUTCDate(backfillFrom.getUTCDate() - CANCELLATION_BACKFILL_DAYS);
+      if (backfillFrom.getTime() < from.getTime()) {
+        from = backfillFrom;
+        console.log(
+          `[YandexFleetOrderService] Парк ${park.name}: backfill причин отказа с ${from.toISOString()}`,
+        );
+      }
+    }
 
     state = await this.syncStateRepository.save({
       ...(state ?? {}),
@@ -130,6 +148,19 @@ export class YandexFleetOrderService {
         lastError: null,
         retryCount: 0,
       });
+
+      if (needsCancellationBackfill) {
+        await this.syncStateRepository.save({
+          ...(cancellationBackfillState ?? {}),
+          parkId: park.id,
+          syncType: YandexFleetSyncType.OrdersCancellationBackfill,
+          lastSyncedTo: startedAt,
+          lastRunAt: startedAt,
+          status: YandexFleetSyncStatus.Idle,
+          lastError: null,
+          retryCount: 0,
+        });
+      }
 
       console.log(
         `[YandexFleetOrderService] Парк ${park.name}: сохранено ${totalSaved} заказов, обновлено lastOrderDate у ${profilesUpdated} профилей`,
@@ -203,6 +234,7 @@ export class YandexFleetOrderService {
       status: order.status,
       bookedAt: new Date(order.booked_at),
       price: order.price,
+      cancellationDescription: order.cancellation_description || null,
     } as YandexFleetOrderEntity;
   }
 }

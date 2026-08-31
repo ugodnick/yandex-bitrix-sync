@@ -39,6 +39,7 @@ export enum OrdersColumn {
   Bonus = 'Сумма бонусов (RUB)',
   Id = 'ID заказа',
   Park = 'Парк',
+  CancellationReason = 'Причина отказа',
 }
 
 export enum TransactionsColumn {
@@ -102,6 +103,7 @@ export const YANDEX_FLEET_SHEET_COLUMN_ORDER: {
     OrdersColumn.Bonus,
     OrdersColumn.Id,
     OrdersColumn.Park,
+    OrdersColumn.CancellationReason,
   ],
   [YandexFleetSheetName.SupplyHoursMonth]: [
     SupplyHoursMonthColumn.ContractorId,

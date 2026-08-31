@@ -69,7 +69,7 @@ export interface YandexFleetOrder {
     name: string;
   };
   mileage: string;
-  cancellation_description: string;
+  cancellation_description?: string;
   park_details: {
     tariff: {
       id: string;

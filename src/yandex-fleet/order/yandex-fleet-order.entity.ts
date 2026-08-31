@@ -42,6 +42,9 @@ export class YandexFleetOrderEntity {
   @Column({ type: 'varchar', name: 'price', default: 'Неизвестно' })
   price: string;
 
+  @Column({ type: 'varchar', name: 'cancellation_description', nullable: true })
+  cancellationDescription: string | null;
+
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
