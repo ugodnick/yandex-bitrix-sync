@@ -392,6 +392,58 @@ export class YandexFleetProfileBitrixMapper {
       }
     }
 
+    let predecessor: YandexFleetProfileEntity | null = null;
+    if (!matchedDeal) {
+      const newCreatedAt = new Date(driver.driver_profile.created_date).getTime();
+      const reclaimCandidates: Array<{
+        deal: BitrixDealFields;
+        linked: YandexFleetProfileEntity;
+        predecessorCreatedAt: number;
+      }> = [];
+
+      for (const deal of candidateDeals) {
+        const dispatcherId = getDispatcherId(deal);
+        const dealProfileId = deal[BITRIX_FIELDS.PROFILE_ID]
+          ? String(deal[BITRIX_FIELDS.PROFILE_ID])
+          : undefined;
+
+        if (dispatcherId !== park.bitrixDispatcherId) continue;
+        if (!dealProfileId || dealProfileId === driver.driver_profile.id) continue;
+
+        const linked =
+          (await this.profileRepository.findOneBy({ bitrixDealId: String(deal.ID) })) ??
+          (await this.profileRepository.findOneBy({
+            yandexProfileId: dealProfileId,
+            parkId: park.id,
+          }));
+
+        if (!linked || linked.yandexProfileId === driver.driver_profile.id) continue;
+        // Already handed off to a different successor
+        if (
+          linked.supersededByProfileId &&
+          linked.supersededByProfileId !== driver.driver_profile.id
+        ) {
+          continue;
+        }
+
+        const predecessorCreatedAt =
+          linked.fleetCreatedAt?.getTime() ??
+          (deal.DATE_CREATE ? new Date(deal.DATE_CREATE).getTime() : 0);
+
+        // Keep history on the earlier profile's deal; only a later profile may take it over
+        if (!(newCreatedAt > predecessorCreatedAt)) continue;
+
+        reclaimCandidates.push({ deal, linked, predecessorCreatedAt });
+      }
+
+      if (reclaimCandidates.length > 0) {
+        // Several deals for this phone+dispatcher → prefer the earliest one
+        reclaimCandidates.sort((a, b) => a.predecessorCreatedAt - b.predecessorCreatedAt);
+        matchedDeal = reclaimCandidates[0].deal;
+        predecessor = reclaimCandidates[0].linked;
+      }
+    }
+
     if (!matchedDeal) {
       for (const deal of candidateDeals) {
         if (deal[BITRIX_FIELDS.DISPATCHER] || deal[BITRIX_FIELDS.PROFILE_ID]) continue;
@@ -406,22 +458,59 @@ export class YandexFleetProfileBitrixMapper {
       }
     }
 
+    if (!matchedDeal) {
+      predecessor = await this.findLocalEmploymentPredecessor(
+        park,
+        phones,
+        driver.driver_profile.id,
+        new Date(driver.driver_profile.created_date).getTime(),
+      );
+      if (predecessor?.bitrixDealId) {
+        matchedDeal = candidateDeals.find((d) => String(d.ID) === predecessor!.bitrixDealId);
+        if (!matchedDeal) {
+          matchedDeal = {
+            ID: predecessor.bitrixDealId,
+            CONTACT_ID: Number(predecessor.bitrixContactId),
+            STAGE_ID: predecessor.bitrixStageId,
+            [BITRIX_FIELDS.HIRE_DATE]: predecessor.hiredAt
+              ? predecessor.hiredAt.toISOString().slice(0, 10)
+              : undefined,
+            DATE_CREATE: predecessor.fleetCreatedAt?.toISOString(),
+          } as unknown as BitrixDealFields;
+        }
+      } else {
+        predecessor = null;
+      }
+    }
+
     if (matchedDeal) {
-      const stage = matchedDeal.STAGE_ID;
+      const stage =
+        matchedDeal.STAGE_ID === category.Archive &&
+        predecessor &&
+        predecessor.yandexProfileId !== driver.driver_profile.id
+          ? category.NotProcessed
+          : matchedDeal.STAGE_ID;
       const hireDateRaw = matchedDeal[BITRIX_FIELDS.HIRE_DATE];
-      const hiredAt = hireDateRaw ? String(hireDateRaw) : null;
+      const hiredAt = hireDateRaw ? new Date(String(hireDateRaw)) : (predecessor?.hiredAt ?? null);
+
+      const fleetCreatedAt = predecessor
+        ? (predecessor.fleetCreatedAt ??
+          (matchedDeal.DATE_CREATE ? new Date(matchedDeal.DATE_CREATE) : new Date()))
+        : matchedDeal.DATE_CREATE
+          ? new Date(matchedDeal.DATE_CREATE)
+          : new Date();
 
       const state = await this.profileRepository.save({
         yandexProfileId: driver.driver_profile.id,
         parkId: park.id,
         bitrixStageId: stage,
-        bitrixContactId: String(matchedDeal.CONTACT_ID),
+        bitrixContactId: String(matchedDeal.CONTACT_ID ?? contact.ID),
         bitrixDealId: String(matchedDeal.ID),
         dataHash: calculateDriverHash(driverProfile, driverCar, stage),
         hiredAt,
-        fleetCreatedAt: matchedDeal.DATE_CREATE ? new Date(matchedDeal.DATE_CREATE) : new Date(),
-        firstOrderDate: null,
-        lastOrderDate: null,
+        fleetCreatedAt,
+        firstOrderDate: predecessor?.firstOrderDate ?? null,
+        lastOrderDate: predecessor?.lastOrderDate ?? null,
         firstName: driverProfile.person.full_name.first_name || 'Неизвестно',
         lastName: driverProfile.person.full_name.last_name || 'Неизвестно',
         middleName: driverProfile.person.full_name.middle_name,
@@ -429,12 +518,65 @@ export class YandexFleetProfileBitrixMapper {
         employmentType: mapEmploymentTypeName(driverProfile.person.employment_type),
         workRuleId: driverProfile.account.work_rule_id,
         vehicleType: mapVehicleTypeName(driverCar),
+        supersededByProfileId: null,
       });
+
+      if (predecessor && predecessor.yandexProfileId !== state.yandexProfileId) {
+        await this.markPredecessorSuperseded(predecessor, state.yandexProfileId, park);
+        console.log(
+          `[YandexFleetProfileService] Профиль ${state.yandexProfileId} перенял сделку ${state.bitrixDealId} у более раннего ${predecessor.yandexProfileId}`,
+        );
+      }
 
       return { kind: 'linked', state };
     }
 
     return { kind: 'contact-only', contactId: Number(contact.ID) };
+  }
+
+  private async findLocalEmploymentPredecessor(
+    park: YandexFleetParkEntity,
+    phones: string[],
+    newProfileId: string,
+    newCreatedAt: number,
+  ): Promise<YandexFleetProfileEntity | null> {
+    const normalizedPhones = new Set(phones.map((p) => p.replace(/\D/g, '')).filter(Boolean));
+    if (normalizedPhones.size === 0) return null;
+
+    const candidates = await this.profileRepository
+      .createQueryBuilder('p')
+      .where('p.park_id = :parkId', { parkId: park.id })
+      .andWhere('p.phone IS NOT NULL')
+      .andWhere("p.bitrix_deal_id IS NOT NULL AND p.bitrix_deal_id != '0'")
+      .getMany();
+
+    const matches = candidates.filter((p) => {
+      if (p.yandexProfileId === newProfileId) return false;
+      if (p.supersededByProfileId && p.supersededByProfileId !== newProfileId) return false;
+      const phoneDigits = (p.phone || '').replace(/\D/g, '');
+      if (!phoneDigits || !normalizedPhones.has(phoneDigits)) return false;
+
+      const predecessorCreatedAt = p.fleetCreatedAt?.getTime() ?? 0;
+      return newCreatedAt > predecessorCreatedAt;
+    });
+
+    if (matches.length === 0) return null;
+
+    // Prefer the earliest local profile (keep the original deal/history)
+    matches.sort((a, b) => (a.fleetCreatedAt?.getTime() ?? 0) - (b.fleetCreatedAt?.getTime() ?? 0));
+
+    return matches[0];
+  }
+
+  private async markPredecessorSuperseded(
+    predecessor: YandexFleetProfileEntity,
+    successorProfileId: string,
+    park: YandexFleetParkEntity,
+  ): Promise<void> {
+    predecessor.supersededByProfileId = successorProfileId;
+    predecessor.bitrixStageId = getBitrixCategory(park.type).Archive;
+    predecessor.dataHash = '';
+    await this.profileRepository.save(predecessor);
   }
 
   async pickBestContact(

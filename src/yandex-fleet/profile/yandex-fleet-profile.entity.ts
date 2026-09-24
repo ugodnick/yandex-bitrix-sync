@@ -96,6 +96,9 @@ export class YandexFleetProfileEntity {
   })
   balanceSyncedAt: Date | null;
 
+  @Column({ type: 'varchar', name: 'superseded_by_profile_id', nullable: true })
+  supersededByProfileId: string | null;
+
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 

@@ -26,15 +26,17 @@ export class YandexFleetOrderService {
     park: YandexFleetParkEntity,
     orders: YandexFleetOrderEntity[],
     hiredAt: Date,
+    totalCompleteCount?: number,
   ): string | null {
     const stages = getProfileStages(park);
+    const completeCount = totalCompleteCount ?? orders.length;
 
-    const activityStage = this.resolveActivityStage(orders, hiredAt, stages);
+    const activityStage = this.resolveActivityStage(orders, hiredAt, stages, completeCount);
     if (activityStage) return activityStage;
 
-    if ('Orders100' in stages && stages.Orders100 && orders.length > 100) return stages.Orders100;
-    if (orders.length > 25) return stages.Working;
-    if (orders.length > 0) return stages.Orders25;
+    if ('Orders100' in stages && stages.Orders100 && completeCount > 100) return stages.Orders100;
+    if (completeCount > 25) return stages.Working;
+    if (completeCount > 0) return stages.Orders25;
 
     return null;
   }
@@ -43,10 +45,11 @@ export class YandexFleetOrderService {
     orders: YandexFleetOrderEntity[],
     hiredAt: Date,
     stages: { Cold: string; Outflow: string },
+    completeCount: number,
   ): string | null {
     const now = new Date();
 
-    if (orders.length === 0) {
+    if (completeCount === 0) {
       const daysSinceHired = (now.getTime() - hiredAt.getTime()) / (1000 * 60 * 60 * 24);
       if (daysSinceHired >= 30) return stages.Cold;
       return null;

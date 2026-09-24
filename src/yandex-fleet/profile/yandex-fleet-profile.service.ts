@@ -1,4 +1,4 @@
-import { In, Not, Repository } from 'typeorm';
+import { In, IsNull, Not, Repository } from 'typeorm';
 import { YandexFleetService } from '../common/yandex-fleet.service';
 import { BitrixService } from '../../bitrix/bitrix.service';
 import { YandexFleetProfileEntity } from './yandex-fleet-profile.entity';
@@ -46,6 +46,59 @@ export class YandexFleetProfileService {
       bitrixSheetExportService,
       yandexFleetProfileRepository,
     );
+  }
+
+  private async getRelatedProfileIds(parkId: string, profileId: string): Promise<string[]> {
+    const predecessors = await this.yandexFleetProfileRepository.find({
+      where: { parkId, supersededByProfileId: profileId },
+      select: ['yandexProfileId'],
+    });
+    return [profileId, ...predecessors.map((p) => p.yandexProfileId)];
+  }
+
+  private async loadCompleteOrdersForStages(
+    parkId: string,
+    profileIds: string[],
+  ): Promise<{ lastOrders: YandexFleetOrderEntity[]; completeCount: number }> {
+    const [lastOrders, completeCount] = await Promise.all([
+      this.yandexFleetOrderRepository.find({
+        where: {
+          profileId: In(profileIds),
+          parkId,
+          status: OrderStatus.Complete,
+        },
+        order: { bookedAt: 'DESC' },
+        take: 30,
+      }),
+      this.yandexFleetOrderRepository.count({
+        where: {
+          profileId: In(profileIds),
+          parkId,
+          status: OrderStatus.Complete,
+        },
+      }),
+    ]);
+
+    return { lastOrders, completeCount };
+  }
+
+  private async resolveFirstOrderDate(
+    parkId: string,
+    profileIds: string[],
+    existing: Date | null | undefined,
+  ): Promise<Date | null> {
+    if (existing) return existing;
+
+    const oldest = await this.yandexFleetOrderRepository.findOne({
+      where: {
+        profileId: In(profileIds),
+        parkId,
+        status: OrderStatus.Complete,
+      },
+      order: { bookedAt: 'ASC' },
+    });
+
+    return oldest?.bookedAt ?? null;
   }
 
   async syncProfiles(park: YandexFleetParkEntity, newOnly: boolean): Promise<void> {
@@ -184,6 +237,7 @@ export class YandexFleetProfileService {
           where: {
             parkId: park.id,
             bitrixStageId: Not(In(stagesToSkip)),
+            supersededByProfileId: IsNull(),
           },
           order: { yandexProfileId: 'ASC' },
           take: BATCH_SIZE,
@@ -201,20 +255,17 @@ export class YandexFleetProfileService {
               continue;
             }
 
-            const lastOrders = await this.yandexFleetOrderRepository.find({
-              where: {
-                profileId: profile.yandexProfileId,
-                parkId: park.id,
-                status: OrderStatus.Complete,
-              },
-              order: { bookedAt: 'DESC' },
-              take: 30,
-            });
+            const relatedIds = await this.getRelatedProfileIds(park.id, profile.yandexProfileId);
+            const { lastOrders, completeCount } = await this.loadCompleteOrdersForStages(
+              park.id,
+              relatedIds,
+            );
 
             const nextStage = this.yandexFleetOrderService.resolveNextStage(
               park,
               lastOrders,
               profile.hiredAt ?? profile.fleetCreatedAt,
+              completeCount,
             );
 
             if (
@@ -254,6 +305,7 @@ export class YandexFleetProfileService {
       console.error(`[YandexFleetProfileService] Ошибка синхронизации стадий ${park.name}:`, error);
     }
   }
+
   async processYandexProfile(
     park: YandexFleetParkEntity,
     driver: YandexFleetDriverProfileItem,
@@ -264,6 +316,11 @@ export class YandexFleetProfileService {
     });
 
     if (newOnly && localState) return;
+
+    if (localState?.supersededByProfileId) {
+      await this.syncSupersededProfileLocally(park, driver, localState);
+      return;
+    }
 
     const category = getBitrixCategory(park.type);
     const stagesToSkip: readonly string[] = [
@@ -329,11 +386,11 @@ export class YandexFleetProfileService {
       }
     }
 
-    const lastOrders = await this.yandexFleetOrderRepository.find({
-      where: { profileId: driver.driver_profile.id, parkId: park.id, status: OrderStatus.Complete },
-      order: { bookedAt: 'DESC' },
-      take: 30,
-    });
+    const relatedIds = await this.getRelatedProfileIds(park.id, driver.driver_profile.id);
+    const { lastOrders, completeCount } = await this.loadCompleteOrdersForStages(
+      park.id,
+      relatedIds,
+    );
 
     let stage: string = localState ? localState.bitrixStageId : category.NotProcessed;
     const createdDate = new Date(driver.driver_profile.created_date);
@@ -344,34 +401,29 @@ export class YandexFleetProfileService {
       park,
       lastOrders,
       hireDate ?? createdDate,
+      completeCount,
     );
 
-    if (
-      driver.driver_profile.work_status &&
-      driver.driver_profile.work_status !== DriverWorkStatus.Working
-    ) {
+    const isWorking =
+      !driver.driver_profile.work_status ||
+      driver.driver_profile.work_status === DriverWorkStatus.Working;
+
+    if (isWorking && stage === category.Archive) {
+      stage = category.NotProcessed;
+    }
+
+    if (!isWorking) {
       stage = category.Archive;
     } else if (nextStage) {
       stage = nextStage;
     }
 
     const lastOrderDate = lastOrders.length > 0 ? new Date(lastOrders[0].bookedAt) : null;
-    let firstOrderDate = localState?.firstOrderDate || null;
-
-    if (!firstOrderDate) {
-      const oldestLocalOrder = await this.yandexFleetOrderRepository.findOne({
-        where: {
-          profileId: driver.driver_profile.id,
-          parkId: park.id,
-          status: OrderStatus.Complete,
-        },
-        order: { bookedAt: 'ASC' },
-      });
-
-      if (oldestLocalOrder) {
-        firstOrderDate = oldestLocalOrder.bookedAt;
-      }
-    }
+    const firstOrderDate = await this.resolveFirstOrderDate(
+      park.id,
+      relatedIds,
+      localState?.firstOrderDate,
+    );
 
     const currentHash = calculateDriverHash(driverProfile, driverCar, stage);
 
@@ -428,5 +480,26 @@ export class YandexFleetProfileService {
     if (shouldSave) {
       await this.yandexFleetProfileRepository.save(localState);
     }
+  }
+
+  private async syncSupersededProfileLocally(
+    park: YandexFleetParkEntity,
+    driver: YandexFleetDriverProfileItem,
+    localState: YandexFleetProfileEntity,
+  ): Promise<void> {
+    const category = getBitrixCategory(park.type);
+    localState.bitrixStageId = category.Archive;
+
+    const { lastOrders } = await this.loadCompleteOrdersForStages(park.id, [
+      driver.driver_profile.id,
+    ]);
+    const lastOrderDate = lastOrders.length > 0 ? new Date(lastOrders[0].bookedAt) : null;
+    if (localState.lastOrderDate?.getTime() !== lastOrderDate?.getTime()) {
+      localState.lastOrderDate = lastOrderDate;
+    }
+
+    applyBalanceToProfile(localState, driver.accounts);
+    localState.dataHash = '';
+    await this.yandexFleetProfileRepository.save(localState);
   }
 }
