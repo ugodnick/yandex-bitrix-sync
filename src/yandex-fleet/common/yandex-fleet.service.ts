@@ -29,7 +29,7 @@ export class YandexFleetService {
 
       return response.data;
     } catch (error: unknown) {
-      this.handleError(error);
+      this.handleError(error, park);
     }
   }
 
@@ -42,7 +42,7 @@ export class YandexFleetService {
 
       return response.data;
     } catch (error: unknown) {
-      this.handleError(error);
+      this.handleError(error, park);
     }
   }
 
@@ -86,7 +86,7 @@ export class YandexFleetService {
 
       return response.data;
     } catch (error: unknown) {
-      this.handleError(error);
+      this.handleError(error, park);
     }
   }
 
@@ -99,7 +99,7 @@ export class YandexFleetService {
 
       return response.data;
     } catch (error: unknown) {
-      this.handleError(error);
+      this.handleError(error, park);
     }
   }
 
@@ -114,7 +114,7 @@ export class YandexFleetService {
         headers: this.getParkHeaders(park),
       });
     } catch (error: unknown) {
-      this.handleError(error);
+      this.handleError(error, park);
     }
   }
 
@@ -158,7 +158,7 @@ export class YandexFleetService {
       });
       return response.data.contractor_profile_id;
     } catch (error: unknown) {
-      this.handleError(error);
+      this.handleError(error, park);
     }
   }
 
@@ -183,7 +183,7 @@ export class YandexFleetService {
 
       return response.data;
     } catch (error: unknown) {
-      this.handleError(error);
+      this.handleError(error, park);
     }
   }
 
@@ -200,7 +200,7 @@ export class YandexFleetService {
         headers: this.getParkHeaders(park),
       });
     } catch (error: unknown) {
-      this.handleError(error);
+      this.handleError(error, park);
     }
   }
 
@@ -237,19 +237,28 @@ export class YandexFleetService {
     };
   }
 
-  private handleError(error: unknown): never {
+  private handleError(error: unknown, park: YandexFleetParkEntity): never {
+    const parkLabel = `${park.name} (${park.id})`;
+
     if (axios.isAxiosError(error)) {
       const status = error.response?.status;
       const details = error.response?.data;
+      const method = error.config?.method?.toUpperCase();
+      const url = error.config?.url;
 
-      console.error(`Yandex Fleet API Error [${status}]:`, JSON.stringify(details, null, 2));
+      console.error(
+        `Yandex Fleet API Error [${status}] парк «${parkLabel}» ${method} ${url}:`,
+        JSON.stringify(details, null, 2),
+      );
 
-      throw new Error(`Yandex Fleet API Error (status: ${status}): ${error.message}`);
+      throw new Error(
+        `Yandex Fleet API Error (status: ${status}, park: ${park.name}): ${error.message}`,
+      );
     } else if (error instanceof Error) {
-      console.error('Yandex Fleet Service Internal Error:', error.message);
+      console.error(`Yandex Fleet Service Internal Error, парк «${parkLabel}»:`, error.message);
       throw error;
     } else {
-      console.error('Yandex Fleet Service Unknown Error:', error);
+      console.error(`Yandex Fleet Service Unknown Error, парк «${parkLabel}»:`, error);
       throw new Error(String(error));
     }
   }
