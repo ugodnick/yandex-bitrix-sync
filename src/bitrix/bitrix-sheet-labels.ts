@@ -18,6 +18,8 @@ const STAGE_NAME_BY_KEY: Record<string, string> = {
   Cold: 'Холод',
   Archive: 'Архив',
   Cps: 'ЦПС',
+  WillComeToOffice: 'Приедет в офис',
+  SentToLeadgen: 'Отправлен в лидген',
   Duplicates: 'Дубли',
   DoNotClick: 'Сюда не нажимать',
   SpamAdvertisingIlliquid: 'Спам/Реклама/Неликвид',
@@ -34,6 +36,7 @@ function buildStageLabels(): Record<string, string> {
   }
 
   labels['C7:UC_13XQNY'] = 'Приедет в офис';
+  labels['C11:EXECUTING'] = 'НДЗ';
 
   return labels;
 }

@@ -4,6 +4,7 @@ interface AppConfig {
   googleSheetsDeliverySheetId: string;
   googleSheetsTaxiSheetId: string;
   googleSheetsEatSheetId: string;
+  googleSheetsCargoSheetId: string;
   googleSheetsBitrixSheetId: string;
 }
 
@@ -22,6 +23,7 @@ export function loadConfig(): AppConfig {
     googleSheetsDeliverySheetId: requireEnv('GOOGLE_SHEET_DELIVERY_ID'),
     googleSheetsTaxiSheetId: requireEnv('GOOGLE_SHEET_TAXI_ID'),
     googleSheetsEatSheetId: requireEnv('GOOGLE_SHEET_EAT_ID'),
+    googleSheetsCargoSheetId: requireEnv('GOOGLE_SHEET_CARGO_ID'),
     googleSheetsBitrixSheetId: requireEnv('GOOGLE_SHEET_BITRIX_ID'),
   };
 }

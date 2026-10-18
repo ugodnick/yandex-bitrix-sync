@@ -154,6 +154,7 @@ function initServices(database: DataSource): void {
         taxiSpreadsheetId: config.googleSheetsTaxiSheetId,
         deliverySpreadsheetId: config.googleSheetsDeliverySheetId,
         eatSpreadsheetId: config.googleSheetsEatSheetId,
+        cargoSpreadsheetId: config.googleSheetsCargoSheetId,
         bitrixSpreadsheetId: config.googleSheetsBitrixSheetId,
       }),
   );

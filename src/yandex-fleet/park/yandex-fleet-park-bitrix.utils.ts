@@ -8,6 +8,7 @@ export const mapCategory = (
   if (parkType === YandexFleetParkType.Delivery) return BitrixDealCategory.YANDEX_DELIVERY;
   if (parkType === YandexFleetParkType.Taxi) return BitrixDealCategory.YANDEX_TAXI;
   if (parkType === YandexFleetParkType.Eat) return BitrixDealCategory.YANDEX_EAT;
+  if (parkType === YandexFleetParkType.Cargo) return BitrixDealCategory.YANDEX_CARGO;
 
   throw new Error('No such park type in constants');
 };
@@ -18,6 +19,7 @@ export const mapAggregator = (
   if (parkType === YandexFleetParkType.Delivery) return BITRIX_DICT.AGGREGATOR.YANDEX_DELIVERY;
   if (parkType === YandexFleetParkType.Taxi) return BITRIX_DICT.AGGREGATOR.YANDEX_TAXI;
   if (parkType === YandexFleetParkType.Eat) return BITRIX_DICT.AGGREGATOR.YANDEX_EDA;
+  if (parkType === YandexFleetParkType.Cargo) return BITRIX_DICT.AGGREGATOR.YANDEX_DELIVERY;
 
   throw new Error('No such park type in constants');
 };

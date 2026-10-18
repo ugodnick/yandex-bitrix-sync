@@ -22,6 +22,7 @@ export class GoogleSheetsAPIService {
   private readonly deliverySpreadsheetId: string;
   private readonly taxiSpreadsheetId: string;
   private readonly eatSpreadsheetId: string;
+  private readonly cargoSpreadsheetId: string;
   private readonly bitrixSpreadsheetId: string;
   private readonly valueInputOption: 'RAW' | 'USER_ENTERED';
 
@@ -31,6 +32,7 @@ export class GoogleSheetsAPIService {
       deliverySpreadsheetId,
       taxiSpreadsheetId,
       eatSpreadsheetId,
+      cargoSpreadsheetId,
       bitrixSpreadsheetId,
     } = options;
 
@@ -47,6 +49,7 @@ export class GoogleSheetsAPIService {
     this.deliverySpreadsheetId = deliverySpreadsheetId;
     this.taxiSpreadsheetId = taxiSpreadsheetId;
     this.eatSpreadsheetId = eatSpreadsheetId;
+    this.cargoSpreadsheetId = cargoSpreadsheetId;
     this.bitrixSpreadsheetId = bitrixSpreadsheetId;
     this.valueInputOption = options.valueInputOption ?? 'RAW';
   }
@@ -269,6 +272,8 @@ export class GoogleSheetsAPIService {
         return this.taxiSpreadsheetId;
       case SheetType.Eat:
         return this.eatSpreadsheetId;
+      case SheetType.Cargo:
+        return this.cargoSpreadsheetId;
       case SheetType.Bitrix:
         return this.bitrixSpreadsheetId;
       default:

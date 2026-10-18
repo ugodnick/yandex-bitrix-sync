@@ -223,6 +223,8 @@ export const getBitrixCategory = (
   if (type === YandexFleetParkType.Taxi)
     return BITRIX_CATEGORY_STAGE[BitrixDealCategory.YANDEX_TAXI];
   if (type === YandexFleetParkType.Eat) return BITRIX_CATEGORY_STAGE[BitrixDealCategory.YANDEX_EAT];
+  if (type === YandexFleetParkType.Cargo)
+    return BITRIX_CATEGORY_STAGE[BitrixDealCategory.YANDEX_CARGO];
 
   throw new Error('No such park type in constants');
 };

@@ -11,6 +11,7 @@ export enum SheetType {
   Delivery = 'delivery',
   Taxi = 'taxi',
   Eat = 'eat',
+  Cargo = 'cargo',
   Bitrix = 'bitrix',
 }
 
@@ -251,6 +252,7 @@ export interface GoogleSheetsAPIServiceOptions {
   deliverySpreadsheetId: string;
   taxiSpreadsheetId: string;
   eatSpreadsheetId: string;
+  cargoSpreadsheetId: string;
   bitrixSpreadsheetId: string;
   valueInputOption?: 'RAW' | 'USER_ENTERED';
 }

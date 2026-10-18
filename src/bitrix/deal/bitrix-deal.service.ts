@@ -1,5 +1,4 @@
 import { isAxiosError } from 'axios';
-import { BitrixDealCategory } from './bitrix-deal.type';
 import type {
   AddBitrixDealDto,
   BitrixDealFields,
@@ -11,6 +10,14 @@ import type {
 } from '../bitrix.type';
 import { BitrixClient } from '../common/bitrix-client';
 import { buildError } from '../common/bitrix-common.utils';
+import { BitrixDealCategory } from './bitrix-deal.type';
+
+const SYNCED_DEAL_CATEGORIES: BitrixDealCategory[] = [
+  BitrixDealCategory.YANDEX_DELIVERY,
+  BitrixDealCategory.YANDEX_TAXI,
+  BitrixDealCategory.YANDEX_EAT,
+  BitrixDealCategory.YANDEX_CARGO,
+];
 
 export class BitrixDealService {
   constructor(private readonly client: BitrixClient) {}
@@ -28,11 +35,7 @@ export class BitrixDealService {
   }
 
   async list(
-    categories: BitrixDealCategory[] = [
-      BitrixDealCategory.YANDEX_DELIVERY,
-      BitrixDealCategory.YANDEX_TAXI,
-      BitrixDealCategory.YANDEX_EAT,
-    ],
+    categories: BitrixDealCategory[] = SYNCED_DEAL_CATEGORIES,
   ): Promise<BitrixDealFields[]> {
     try {
       const allDeals: BitrixDealFields[] = [];
@@ -85,11 +88,7 @@ export class BitrixDealService {
           {
             params: {
               filter: {
-                CATEGORY_ID: [
-                  BitrixDealCategory.YANDEX_DELIVERY,
-                  BitrixDealCategory.YANDEX_TAXI,
-                  BitrixDealCategory.YANDEX_EAT,
-                ],
+                CATEGORY_ID: SYNCED_DEAL_CATEGORIES,
                 '>DATE_MODIFY': modifiedSince,
               },
               order: { DATE_MODIFY: 'ASC' },
@@ -134,11 +133,7 @@ export class BitrixDealService {
             params: {
               filter: {
                 CONTACT_ID: contactId,
-                CATEGORY_ID: [
-                  BitrixDealCategory.YANDEX_DELIVERY,
-                  BitrixDealCategory.YANDEX_TAXI,
-                  BitrixDealCategory.YANDEX_EAT,
-                ],
+                CATEGORY_ID: SYNCED_DEAL_CATEGORIES,
               },
               order: { ID: 'DESC' },
               select: ['*', 'UF_*'],

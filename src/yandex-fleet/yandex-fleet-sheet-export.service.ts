@@ -36,6 +36,7 @@ export class YandexFleetSheetExportService {
     const taxiParks = parks.filter((p) => p.type === YandexFleetParkType.Taxi);
     const deliveryParks = parks.filter((p) => p.type === YandexFleetParkType.Delivery);
     const eatParks = parks.filter((p) => p.type === YandexFleetParkType.Eat);
+    const cargoParks = parks.filter((p) => p.type === YandexFleetParkType.Cargo);
 
     await this.exportContractors(deliveryParks, SheetType.Delivery);
     await this.exportOrders(deliveryParks, SheetType.Delivery);
@@ -63,6 +64,15 @@ export class YandexFleetSheetExportService {
     await this.googleSheetsApiService.renameSpreadsheet(
       SheetType.Eat,
       `Выгрузка Диспетчерской Еда — ${today}`,
+    );
+
+    await this.exportContractors(cargoParks, SheetType.Cargo);
+    await this.exportOrders(cargoParks, SheetType.Cargo);
+    await this.exportTransactions(cargoParks, SheetType.Cargo);
+
+    await this.googleSheetsApiService.renameSpreadsheet(
+      SheetType.Cargo,
+      `Выгрузка Диспетчерской Грузовой — ${today}`,
     );
   }
 
@@ -97,6 +107,8 @@ export class YandexFleetSheetExportService {
   }
 
   private async exportContractors(parks: YandexFleetParkEntity[], sheetType: SheetType) {
+    if (parks.length === 0) return;
+
     const BATCH_SIZE = 500;
     let offset = 0;
     const allRows: string[][] = [];
@@ -164,6 +176,8 @@ export class YandexFleetSheetExportService {
   }
 
   private async exportOrders(parks: YandexFleetParkEntity[], sheetType: SheetType) {
+    if (parks.length === 0) return;
+
     const BATCH_SIZE = 500;
     let offset = 0;
     const allRows: string[][] = [];
@@ -240,6 +254,8 @@ export class YandexFleetSheetExportService {
   }
 
   private async exportTransactions(parks: YandexFleetParkEntity[], sheetType: SheetType) {
+    if (parks.length === 0) return;
+
     const BATCH_SIZE = 500;
     let offset = 0;
     const allRows: string[][] = [];
@@ -336,6 +352,12 @@ export class YandexFleetSheetExportService {
       sheetName,
       periodType,
     );
+    await this.exportSupplyHours(
+      parks.filter((p) => p.type === YandexFleetParkType.Cargo),
+      SheetType.Cargo,
+      sheetName,
+      periodType,
+    );
   }
 
   async isSupplyHoursExportComplete(
@@ -353,6 +375,7 @@ export class YandexFleetSheetExportService {
       parks.filter((p) => p.type === YandexFleetParkType.Delivery),
       parks.filter((p) => p.type === YandexFleetParkType.Taxi),
       parks.filter((p) => p.type === YandexFleetParkType.Eat),
+      parks.filter((p) => p.type === YandexFleetParkType.Cargo),
     ];
 
     for (const group of parkGroups) {

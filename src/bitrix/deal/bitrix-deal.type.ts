@@ -5,6 +5,7 @@ export enum BitrixDealCategory {
   YANDEX_DELIVERY = '3',
   YANDEX_TAXI = '5',
   YANDEX_EAT = '7',
+  YANDEX_CARGO = '11',
 }
 
 export const BITRIX_CATEGORY_STAGE = {
@@ -74,6 +75,30 @@ export const BITRIX_CATEGORY_STAGE = {
     DoNotClick: 'C7:WON',
     SpamAdvertisingIlliquid: 'C7:LOSE',
     Refusal: 'C7:APOLOGY',
+  },
+  [BitrixDealCategory.YANDEX_CARGO]: {
+    NotProcessed: 'C11:NEW',
+    TakenToWork: 'C11:PREPARATION',
+    CallBack: 'C11:PREPAYMENT_INVOIC',
+    NdzLead: 'C11:EXECUTING',
+    Thinking: 'C11:UC_KJS0L6',
+    WillComeToOffice: 'C11:UC_ZJL1B2',
+    TransferToSmz: 'C11:FINAL_INVOICE',
+    DocumentCollection: 'C11:UC_2SOG1D',
+    OutputFor1Order: 'C11:UC_SXVOY7',
+    NdzNotComeOut: 'C11:UC_VD1GRS',
+    Orders25: 'C11:UC_PP7LAN',
+    Working: 'C11:UC_FEH2BJ',
+    Outflow: 'C11:UC_BTKULW',
+    Pause: 'C11:UC_NAYR0Z',
+    Cold: 'C11:UC_K069W3',
+    Archive: 'C11:UC_HI0AM2',
+    SentToLeadgen: 'C11:UC_72R7R0',
+    Cps: 'C11:UC_1E4UM5',
+    Duplicates: 'C11:UC_1505J0',
+    DoNotClick: 'C11:WON',
+    SpamAdvertisingIlliquid: 'C11:LOSE',
+    Refusal: 'C11:APOLOGY',
   },
 } as const;
 

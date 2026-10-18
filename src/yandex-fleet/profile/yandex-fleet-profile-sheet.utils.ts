@@ -50,9 +50,53 @@ function eatStageToStatus(stageId: string): ProfileStatus {
   }
 }
 
+function cargoStageToStatus(stageId: string): ProfileStatus {
+  const cargoStages = getBitrixCategory(YandexFleetParkType.Cargo) as ReturnType<
+    typeof getBitrixCategory
+  > & {
+    WillComeToOffice: string;
+    SentToLeadgen: string;
+  };
+  switch (stageId) {
+    case cargoStages.NotProcessed:
+    case cargoStages.TakenToWork:
+    case cargoStages.CallBack:
+    case cargoStages.NdzLead:
+    case cargoStages.Thinking:
+    case cargoStages.WillComeToOffice:
+    case cargoStages.DocumentCollection:
+    case cargoStages.TransferToSmz:
+    case cargoStages.OutputFor1Order:
+    case cargoStages.NdzNotComeOut:
+      return ProfileStatus.New;
+    case cargoStages.Orders25:
+    case cargoStages.Working:
+      return ProfileStatus.Active;
+    case cargoStages.Outflow:
+      return ProfileStatus.Outflow;
+    case cargoStages.Cold:
+      return ProfileStatus.Cold;
+    case cargoStages.Pause:
+      return ProfileStatus.Pause;
+    case cargoStages.Archive:
+    case cargoStages.SentToLeadgen:
+    case cargoStages.Cps:
+    case cargoStages.Duplicates:
+    case cargoStages.DoNotClick:
+    case cargoStages.SpamAdvertisingIlliquid:
+    case cargoStages.Refusal:
+      return ProfileStatus.Archive;
+    default:
+      return ProfileStatus.Unknown;
+  }
+}
+
 export function stageToStatus(parkType: YandexFleetParkType, stageId: string): ProfileStatus {
   if (parkType === YandexFleetParkType.Eat) {
     return eatStageToStatus(stageId);
+  }
+  if (parkType === YandexFleetParkType.Cargo) {
+    return cargoStageToStatus(stageId);
   }
 
   const stages = getBitrixCategory(parkType);

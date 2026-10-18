@@ -7,6 +7,7 @@ export enum YandexFleetParkType {
   Delivery = 'delivery',
   Taxi = 'taxi',
   Eat = 'eat',
+  Cargo = 'cargo',
 }
 
 @Entity('yandex_fleet_park')
