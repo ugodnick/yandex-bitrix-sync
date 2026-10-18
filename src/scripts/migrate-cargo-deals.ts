@@ -17,6 +17,37 @@ const PARK_NAME: Record<string, string> = {
   c45bf27db32a4974b3edf382489ff246: 'Магистраль',
 };
 
+const DELIVERY_TO_CARGO_STAGE: Record<string, string> = {
+  'C3:NEW': 'C11:NEW',
+  'C3:PREPARATION': 'C11:PREPARATION',
+  'C3:UC_C44UC0': 'C11:PREPAYMENT_INVOIC',
+  'C3:UC_8UHKSK': 'C11:EXECUTING',
+  'C3:UC_LW45DH': 'C11:UC_KJS0L6',
+  'C3:PREPAYMENT_INVOICE': 'C11:UC_2SOG1D',
+  'C3:UC_2CL0T5': 'C11:FINAL_INVOICE',
+  'C3:UC_46LTTM': 'C11:UC_SXVOY7',
+  'C3:UC_023RU4': 'C11:UC_VD1GRS',
+  'C3:UC_N3IZNW': 'C11:UC_PP7LAN',
+  'C3:UC_M9CKHN': 'C11:UC_FEH2BJ',
+  'C3:UC_O9PXU5': 'C11:UC_BTKULW',
+  'C3:UC_NFJLN9': 'C11:UC_NAYR0Z',
+  'C3:UC_S71G81': 'C11:UC_K069W3',
+  'C3:UC_242CHI': 'C11:UC_HI0AM2',
+  'C3:UC_ED0AAW': 'C11:UC_1E4UM5',
+  'C3:UC_1A121F': 'C11:UC_1505J0',
+  'C3:WON': 'C11:WON',
+  'C3:LOSE': 'C11:LOSE',
+  'C3:APOLOGY': 'C11:APOLOGY',
+};
+
+const DEAL_ENTITY_TYPE_ID = 2;
+
+interface BitrixItemUpdateResponse {
+  result?: { item?: { categoryId?: number | string; stageId?: string } };
+  error?: string;
+  error_description?: string;
+}
+
 function log(message: string): void {
   console.log(`[migrate-cargo-deals] ${message}`);
 }
@@ -25,6 +56,67 @@ function profileLabel(profile: YandexFleetProfileEntity): string {
   const name = [profile.lastName, profile.firstName].filter(Boolean).join(' ');
   const park = PARK_NAME[profile.parkId] ?? profile.parkId;
   return `${park} / ${name || profile.yandexProfileId}`;
+}
+
+function cargoStage(stageId: string): string {
+  return DELIVERY_TO_CARGO_STAGE[stageId] ?? stageId;
+}
+
+async function updateDealItem(
+  bitrix: BitrixService,
+  dealId: string,
+  fields: { categoryId?: number; stageId?: string },
+): Promise<void> {
+  const data = await bitrix.client.post<BitrixItemUpdateResponse>('crm.item.update.json', {
+    entityTypeId: DEAL_ENTITY_TYPE_ID,
+    id: Number(dealId),
+    fields,
+  });
+
+  if (data.error) {
+    throw new Error(data.error_description || data.error);
+  }
+}
+
+async function readDealPlacement(
+  bitrix: BitrixService,
+  dealId: string,
+): Promise<{ categoryId: string; stageId: string }> {
+  const deal = await bitrix.getDeal(dealId);
+  return {
+    categoryId: String(deal.CATEGORY_ID ?? ''),
+    stageId: deal.STAGE_ID ?? '',
+  };
+}
+
+async function moveDealToCargo(
+  bitrix: BitrixService,
+  dealId: string,
+  stage: string,
+): Promise<{ categoryId: string; stageId: string }> {
+  const categoryId = Number(BitrixDealCategory.YANDEX_CARGO);
+
+  try {
+    await updateDealItem(bitrix, dealId, { categoryId, stageId: stage });
+  } catch (error) {
+    log(
+      `сделка ${dealId}: общий перенос не прошёл (${error instanceof Error ? error.message : String(error)}), меняю воронку и стадию отдельно`,
+    );
+    await updateDealItem(bitrix, dealId, { categoryId });
+    await updateDealItem(bitrix, dealId, { stageId: stage });
+  }
+
+  const placed = await readDealPlacement(bitrix, dealId);
+  if (placed.categoryId === BitrixDealCategory.YANDEX_CARGO && placed.stageId === stage) {
+    return placed;
+  }
+
+  log(
+    `сделка ${dealId}: после общего переноса в Bitrix категория ${placed.categoryId || '—'}, стадия ${placed.stageId || '—'}. Повторяю отдельно`,
+  );
+  await updateDealItem(bitrix, dealId, { categoryId });
+  await updateDealItem(bitrix, dealId, { stageId: stage });
+  return readDealPlacement(bitrix, dealId);
 }
 
 async function main(): Promise<void> {
@@ -49,7 +141,7 @@ async function main(): Promise<void> {
     (parkId) => `${PARK_NAME[parkId]}: ${profiles.filter((p) => p.parkId === parkId).length}`,
   ).join(', ');
   log(`Найдено профилей: ${profiles.length} (${byPark})`);
-  log('Между запросами к Bitrix пауза 700 мс, на сделку уходит два запроса');
+  log('Перенос через crm.item.update: воронка 11 и локальная стадия профиля');
 
   let moved = 0;
   let skipped = 0;
@@ -68,37 +160,32 @@ async function main(): Promise<void> {
     }
 
     try {
+      const stage = cargoStage(profile.bitrixStageId);
+      const before = await readDealPlacement(bitrix, profile.bitrixDealId);
       log(
-        `${position} ${label}: читаю сделку ${profile.bitrixDealId}, локальная стадия ${profile.bitrixStageId}`,
+        `${position} ${label}: сделка ${profile.bitrixDealId} сейчас категория ${before.categoryId || '—'}, стадия ${before.stageId || '—'}; цель 11 / ${stage}`,
       );
-      const deal = await bitrix.getDeal(profile.bitrixDealId);
-      const alreadyMoved =
-        String(deal.CATEGORY_ID ?? '') === BitrixDealCategory.YANDEX_CARGO &&
-        deal.STAGE_ID === profile.bitrixStageId;
 
-      if (alreadyMoved) {
+      if (before.categoryId === BitrixDealCategory.YANDEX_CARGO && before.stageId === stage) {
         skipped++;
         log(
-          `${position} ${label}: уже в cargo (${deal.STAGE_ID}), пропуск. Итог: перенесено ${moved}, пропущено ${skipped}, ошибок ${failed}`,
+          `${position} ${label}: уже в cargo на нужной стадии, пропуск. Итог: перенесено ${moved}, пропущено ${skipped}, ошибок ${failed}`,
+        );
+        continue;
+      }
+
+      const placed = await moveDealToCargo(bitrix, profile.bitrixDealId, stage);
+      if (placed.categoryId !== BitrixDealCategory.YANDEX_CARGO || placed.stageId !== stage) {
+        failed++;
+        console.error(
+          `[migrate-cargo-deals] ${position} ${label}: в Bitrix осталось категория ${placed.categoryId || '—'}, стадия ${placed.stageId || '—'}`,
         );
         continue;
       }
 
       log(
-        `${position} ${label}: категория ${String(deal.CATEGORY_ID ?? '—')}, стадия ${deal.STAGE_ID ?? '—'} → ${BitrixDealCategory.YANDEX_CARGO} / ${profile.bitrixStageId}`,
+        `${position} ${label}: в Bitrix теперь категория ${placed.categoryId}, стадия ${placed.stageId}`,
       );
-      const updated = await bitrix.updateDeal(profile.bitrixDealId, {
-        CATEGORY_ID: BitrixDealCategory.YANDEX_CARGO,
-        STAGE_ID: profile.bitrixStageId,
-      });
-
-      if (!updated) {
-        failed++;
-        console.error(
-          `[migrate-cargo-deals] ${position} ${label}: Bitrix вернул false для сделки ${profile.bitrixDealId}`,
-        );
-        continue;
-      }
 
       moved++;
       const elapsedSec = Math.round((Date.now() - startedAt) / 1000);
