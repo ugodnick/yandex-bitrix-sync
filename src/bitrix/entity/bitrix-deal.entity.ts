@@ -52,6 +52,15 @@ export class BitrixDealEntity {
   @Column({ type: 'varchar', nullable: true })
   city: string | null;
 
+  @Column({ type: 'text', name: 'sources_raw', nullable: true })
+  sourcesRaw: string | null;
+
+  @Column({ type: 'varchar', name: 'first_order_transferred_by_raw', nullable: true })
+  firstOrderTransferredByRaw: string | null;
+
+  @Column({ type: 'varchar', name: 'first_order_transferred_at_raw', nullable: true })
+  firstOrderTransferredAtRaw: string | null;
+
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 

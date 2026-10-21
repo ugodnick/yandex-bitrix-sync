@@ -59,6 +59,15 @@ export function formatBitrixDateOnly(iso?: string): string {
   return formatBitrixDateInTz(iso, false);
 }
 
+export function formatBitrixUfDate(value?: string | null): string {
+  if (!value) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split('-');
+    return `${day}.${month}.${year}`;
+  }
+  return formatBitrixDateInTz(value, true);
+}
+
 export function formatBitrixTimeOnly(iso?: string): string {
   if (!iso) return '';
   const date = new Date(iso);
@@ -116,6 +125,20 @@ export function resolveStageLabel(stageId?: string | null): string {
 
 export function resolveSourceLabel(sourceId?: string | null): string {
   return resolveListLabel(BITRIX_SOURCE_LABELS, sourceId);
+}
+
+export function resolveBitrixUserNames(
+  userIdsRaw: string | null | undefined,
+  userNamesByBitrixId: ReadonlyMap<string, string>,
+): string {
+  if (!userIdsRaw) return '';
+
+  return userIdsRaw
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => (/^\d+$/.test(part) ? (userNamesByBitrixId.get(part) ?? part) : part))
+    .join(', ');
 }
 
 export function resolveDispatcherName(

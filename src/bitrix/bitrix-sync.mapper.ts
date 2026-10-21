@@ -58,6 +58,13 @@ export function dealFieldsToEntity(fields: BitrixDealFields): BitrixDealEntity {
   entity.sourceId = fields.SOURCE_ID ?? null;
   entity.sourceDescription = fields.SOURCE_DESCRIPTION ?? null;
   entity.city = serializeUfValue(fields[BITRIX_FIELDS.CITY]);
+  entity.sourcesRaw = serializeUfValue(fields[BITRIX_FIELDS.SOURCES]);
+  entity.firstOrderTransferredByRaw = serializeUfValue(
+    fields[BITRIX_FIELDS.FIRST_ORDER_TRANSFERRED_BY],
+  );
+  entity.firstOrderTransferredAtRaw = serializeUfValue(
+    fields[BITRIX_FIELDS.FIRST_ORDER_TRANSFERRED_AT],
+  );
   return entity;
 }
 

@@ -5,14 +5,17 @@ import { YandexFleetParkEntity } from '../yandex-fleet/park/yandex-fleet-park.en
 import { BitrixCallEntity } from './entity/bitrix-call.entity';
 import { BitrixContactEntity } from './entity/bitrix-contact.entity';
 import { BitrixDealEntity } from './entity/bitrix-deal.entity';
+import { BitrixUserEntity } from './entity/bitrix-user.entity';
 import { contactEntityDisplayName } from './bitrix-sync.mapper';
 import {
   formatBitrixDateInTz,
+  formatBitrixUfDate,
   formatCallDuration,
   formatCallStatusCode,
   formatCallType,
   formatExportTitleDate,
   resolveAggregatorLabel,
+  resolveBitrixUserNames,
   resolveDispatcherName,
   resolveSourceLabel,
   resolveStageLabel,
@@ -26,6 +29,7 @@ const CALLS_EXPORT_MONTHS = 3;
 
 export class BitrixSheetExportService {
   private dispatcherNamesByBitrixId: Map<string, string> | null = null;
+  private userNamesByBitrixId: Map<string, string> | null = null;
 
   constructor(
     private readonly googleSheetsApiService: GoogleSheetsAPIService,
@@ -33,6 +37,7 @@ export class BitrixSheetExportService {
     private readonly dealRepository: Repository<BitrixDealEntity>,
     private readonly callRepository: Repository<BitrixCallEntity>,
     private readonly parkRepository: Repository<YandexFleetParkEntity>,
+    private readonly userRepository: Repository<BitrixUserEntity>,
   ) {}
 
   async appendNewDeal(payload: string[]): Promise<void> {
@@ -56,16 +61,24 @@ export class BitrixSheetExportService {
   }
 
   private async loadDispatcherNames(): Promise<void> {
-    const parks = await this.parkRepository.find();
+    const [parks, users] = await Promise.all([
+      this.parkRepository.find(),
+      this.userRepository.find(),
+    ]);
     this.dispatcherNamesByBitrixId = new Map(
       parks
         .filter((park) => park.bitrixDispatcherId)
         .map((park) => [String(park.bitrixDispatcherId), park.name]),
     );
+    this.userNamesByBitrixId = new Map(users.map((user) => [user.bitrixId, user.fullName]));
   }
 
   private getDispatcherNames(): Map<string, string> {
     return this.dispatcherNamesByBitrixId ?? new Map();
+  }
+
+  private getUserNames(): Map<string, string> {
+    return this.userNamesByBitrixId ?? new Map();
   }
 
   private async exportContacts(): Promise<void> {
@@ -122,6 +135,9 @@ export class BitrixSheetExportService {
       toSheetString(resolveStageLabel(deal.stageId)),
       toSheetString(resolveSourceLabel(deal.sourceId)),
       toSheetString(deal.city),
+      toSheetString(deal.sourcesRaw),
+      toSheetString(resolveBitrixUserNames(deal.firstOrderTransferredByRaw, this.getUserNames())),
+      toSheetString(formatBitrixUfDate(deal.firstOrderTransferredAtRaw)),
     ];
   }
 

@@ -115,6 +115,7 @@ function initServices(database: DataSource): void {
         bitrixDealRepository,
         bitrixCallRepository,
         yandexFleetParkRepository,
+        bitrixUserRepository,
       ),
   );
   container.add(
