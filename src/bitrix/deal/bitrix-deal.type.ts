@@ -222,6 +222,18 @@ export const BITRIX_DICT = {
     USNP: '417',
     OSNP: '419',
   },
+  SOURCES: {
+    CPSYA_SITE: 63,
+    YANDEX_LANDING: 65,
+    REFERRAL: 67,
+    GIS2: 69,
+    YANDEX_MAPS: 71,
+    OFFICE: 425,
+    AVITO: 443,
+    HB: 449,
+    FARPOST: 451,
+    TELEGRAM: 453,
+  },
   SOURCE: {
     FARPOST: 'CALL',
     AVITO: 'WEBFORM',

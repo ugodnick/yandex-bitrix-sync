@@ -1,5 +1,6 @@
 import {
   BITRIX_AGGREGATOR_LABELS,
+  BITRIX_SOURCES_LABELS,
   BITRIX_SOURCE_LABELS,
   BITRIX_STAGE_LABELS,
   BITRIX_VACANCY_LABELS,
@@ -125,6 +126,17 @@ export function resolveStageLabel(stageId?: string | null): string {
 
 export function resolveSourceLabel(sourceId?: string | null): string {
   return resolveListLabel(BITRIX_SOURCE_LABELS, sourceId);
+}
+
+export function resolveSourcesLabel(value?: string | null): string {
+  if (!value) return '';
+
+  return value
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((id) => BITRIX_SOURCES_LABELS[id] ?? id)
+    .join(', ');
 }
 
 export function resolveBitrixUserNames(

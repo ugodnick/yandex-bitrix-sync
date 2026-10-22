@@ -59,6 +59,19 @@ export const BITRIX_AGGREGATOR_LABELS: Record<string, string> = {
   [BITRIX_DICT.AGGREGATOR.YANDEX_DELIVERY]: 'Яндекс Доставка',
 };
 
+export const BITRIX_SOURCES_LABELS: Record<string, string> = {
+  [BITRIX_DICT.SOURCES.CPSYA_SITE]: 'Сайт cpsya.pro',
+  [BITRIX_DICT.SOURCES.YANDEX_LANDING]: 'Высадка Яндекс',
+  [BITRIX_DICT.SOURCES.REFERRAL]: 'По рекомендации',
+  [BITRIX_DICT.SOURCES.GIS2]: '2ГИС',
+  [BITRIX_DICT.SOURCES.YANDEX_MAPS]: 'Я.Карты',
+  [BITRIX_DICT.SOURCES.OFFICE]: 'Офис',
+  [BITRIX_DICT.SOURCES.AVITO]: 'Авито',
+  [BITRIX_DICT.SOURCES.HB]: 'ХБ',
+  [BITRIX_DICT.SOURCES.FARPOST]: 'Фарпост',
+  [BITRIX_DICT.SOURCES.TELEGRAM]: 'ТГ',
+};
+
 export const BITRIX_SOURCE_LABELS: Record<string, string> = {
   [BITRIX_DICT.SOURCE.FARPOST]: 'Фарпост',
   [BITRIX_DICT.SOURCE.AVITO]: 'Авито',

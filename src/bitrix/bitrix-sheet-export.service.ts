@@ -18,6 +18,7 @@ import {
   resolveBitrixUserNames,
   resolveDispatcherName,
   resolveSourceLabel,
+  resolveSourcesLabel,
   resolveStageLabel,
   resolveVacancyLabel,
   toIsoPeriodStartMonthsAgo,
@@ -135,7 +136,7 @@ export class BitrixSheetExportService {
       toSheetString(resolveStageLabel(deal.stageId)),
       toSheetString(resolveSourceLabel(deal.sourceId)),
       toSheetString(deal.city),
-      toSheetString(deal.sourcesRaw),
+      toSheetString(resolveSourcesLabel(deal.sourcesRaw)),
       toSheetString(resolveBitrixUserNames(deal.firstOrderTransferredByRaw, this.getUserNames())),
       toSheetString(formatBitrixUfDate(deal.firstOrderTransferredAtRaw)),
     ];
