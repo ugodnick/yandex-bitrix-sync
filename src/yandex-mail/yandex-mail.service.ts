@@ -27,6 +27,7 @@ import {
 
 const MAIL_UID_BATCH = 10;
 const MAIL_FETCH_PAUSE_MS = 5000;
+const MAIL_RECONNECT_ATTEMPTS = 5;
 const MAIL_SYNC_OVERLAP_MS = 30 * 60 * 1000;
 const MAIL_SUBJECT = 'Новый исполнитель в диспетчерской';
 
@@ -111,21 +112,11 @@ export class YandexMailService {
       ),
     );
 
-    const client = new ImapFlow({
-      host: 'imap.yandex.ru',
-      port: 993,
-      secure: true,
-      auth: { user: this.mailConfig.user, pass: this.mailConfig.password },
-      logger: false,
-      disableAutoIdle: true,
-    });
-    client.on('error', (error: Error) => {
-      console.error('[YandexMail] IMAP-соединение прервано:', error.message);
-    });
+    const session = { client: this.createClient() };
 
     try {
-      await client.connect();
-      const mailboxes = await client.list();
+      await session.client.connect();
+      const mailboxes = await session.client.list();
       const folders = mailboxes.filter((box) => this.isNewCourierFolder(box.name));
 
       if (folders.length === 0) {
@@ -150,7 +141,7 @@ export class YandexMailService {
         const state = await this.beginMailSync(park.id, startedAt);
         try {
           await this.syncFolder(
-            client,
+            session,
             folder.path,
             knownMessageIds,
             this.mailSince(state.lastSyncedTo),
@@ -163,8 +154,33 @@ export class YandexMailService {
         }
       }
     } finally {
-      await client.logout().catch(() => undefined);
+      await session.client.logout().catch(() => undefined);
     }
+  }
+
+  private createClient(): ImapFlow {
+    if (!this.mailConfig) throw new Error('Почта не настроена');
+
+    const client = new ImapFlow({
+      host: 'imap.yandex.ru',
+      port: 993,
+      secure: true,
+      auth: { user: this.mailConfig.user, pass: this.mailConfig.password },
+      logger: false,
+      disableAutoIdle: true,
+    });
+    client.on('error', (error: Error) => {
+      console.error('[YandexMail] IMAP-соединение прервано:', error.message);
+    });
+    return client;
+  }
+
+  private async reconnect(session: { client: ImapFlow }, folderPath: string): Promise<void> {
+    await session.client.logout().catch(() => undefined);
+    await this.pause();
+    session.client = this.createClient();
+    await session.client.connect();
+    console.log(`[YandexMail] Соединение восстановлено, папка «${folderPath}»`);
   }
 
   private folderParkName(folder: {
@@ -222,14 +238,14 @@ export class YandexMailService {
   }
 
   private async syncFolder(
-    client: ImapFlow,
+    session: { client: ImapFlow },
     folderPath: string,
     knownMessageIds: Set<string>,
     since: Date | null,
   ): Promise<void> {
-    const lock = await client.getMailboxLock(folderPath);
+    let lock = await session.client.getMailboxLock(folderPath);
     try {
-      const uids = await client.search(
+      const uids = await session.client.search(
         since ? { subject: MAIL_SUBJECT, since } : { subject: MAIL_SUBJECT },
         { uid: true },
       );
@@ -240,18 +256,53 @@ export class YandexMailService {
       let saved = 0;
       for (let offset = 0; offset < list.length; offset += MAIL_UID_BATCH) {
         const batch = list.slice(offset, offset + MAIL_UID_BATCH);
-        const freshUids = await this.uidsNotStored(client, batch, folderPath, knownMessageIds);
-        await this.pause();
+        let attempts = 0;
 
-        for (const uid of freshUids) {
+        while (true) {
           try {
-            await this.ingestUid(client, uid, folderPath, knownMessageIds);
-            saved += 1;
+            const freshUids = await this.uidsNotStored(
+              session.client,
+              batch,
+              folderPath,
+              knownMessageIds,
+            );
+            await this.pause();
+
+            for (const uid of freshUids) {
+              try {
+                await this.ingestUid(session.client, uid, folderPath, knownMessageIds);
+                saved += 1;
+              } catch (error) {
+                if (this.isClosedConnection(error)) throw error;
+                console.error(
+                  `[YandexMail] Письмо uid ${uid} в «${folderPath}» не обработано:`,
+                  error,
+                );
+              }
+              await this.pause();
+            }
+            break;
           } catch (error) {
-            console.error(`[YandexMail] Письмо uid ${uid} в «${folderPath}» не обработано:`, error);
-            if (this.isClosedConnection(error)) throw error;
+            const closed = this.isClosedConnection(error);
+            if (!closed || attempts >= MAIL_RECONNECT_ATTEMPTS) {
+              if (!closed) {
+                console.error(`[YandexMail] Письмо в «${folderPath}» не обработано:`, error);
+              }
+              throw error;
+            }
+
+            attempts += 1;
+            console.error(
+              `[YandexMail] «${folderPath}»: соединение оборвалось, повтор ${attempts}/${MAIL_RECONNECT_ATTEMPTS}`,
+            );
+            try {
+              lock.release();
+            } catch {
+              // Соединение уже закрыто.
+            }
+            await this.reconnect(session, folderPath);
+            lock = await session.client.getMailboxLock(folderPath);
           }
-          await this.pause();
         }
       }
 
