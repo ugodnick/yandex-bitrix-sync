@@ -34,6 +34,8 @@ import { BitrixDealEntity } from './bitrix/entity/bitrix-deal.entity';
 import { BitrixCallEntity } from './bitrix/entity/bitrix-call.entity';
 import { BitrixUserEntity } from './bitrix/entity/bitrix-user.entity';
 import { BitrixSyncStateEntity } from './bitrix/entity/bitrix-sync-state.entity';
+import { YandexMailCandidateEntity } from './yandex-mail/yandex-mail-candidate.entity';
+import { YandexMailService } from './yandex-mail/yandex-mail.service';
 
 dotenv.config();
 
@@ -82,6 +84,19 @@ function initServices(database: DataSource): void {
   const bitrixSyncStateRepository = database.getRepository(BitrixSyncStateEntity);
 
   container.add(BitrixService, () => new BitrixService(config.inboundWebhookUrl));
+  container.add(
+    YandexMailService,
+    () =>
+      new YandexMailService(
+        config.yandexMail,
+        database.getRepository(YandexMailCandidateEntity),
+        yandexFleetsyncStateRepository,
+        bitrixContactRepository,
+        bitrixDealRepository,
+        yandexFleetParkRepository,
+        container.get(BitrixService),
+      ),
+  );
   container.add(
     BitrixSyncService,
     () =>
@@ -137,6 +152,7 @@ function initServices(database: DataSource): void {
         yandexFleetProfileRepository,
         yandexFleetOrderRepository,
         yandexFleetsyncStateRepository,
+        container.get(YandexMailService),
       ),
   );
   container.add(
@@ -243,6 +259,16 @@ function scheduleSupplyHoursSync() {
       queue.enqueue('supply-hours-day', () => runSyncIfNeeded('day'));
     },
     { timezone: 'Asia/Vladivostok', runOnInit: false },
+  );
+}
+
+function scheduleYandexMailSync() {
+  const queue = new Queue('scheduleYandexMailSync');
+
+  cron.schedule(
+    '*/30 * * * *',
+    () => queue.enqueue('poll', () => container.get(YandexMailService).poll()),
+    { runOnInit: true },
   );
 }
 
@@ -356,6 +382,7 @@ async function bootstrap() {
   scheduleBitrixSync();
   scheduleGoogleSheetExport();
   scheduleSupplyHoursSync();
+  scheduleYandexMailSync();
 
   container
     .get(BitrixSyncService)

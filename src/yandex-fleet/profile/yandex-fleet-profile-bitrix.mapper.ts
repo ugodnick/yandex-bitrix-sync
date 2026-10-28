@@ -36,12 +36,14 @@ import {
 } from './yandex-fleet-profile-bitrix.utils';
 import { cleanPayload, formatDateForBitrix } from '../common/yandex-fleet-format.utils';
 import { mapVehicleTypeName } from '../vehicle/yandex-fleet-vehicle-bitrix.utils';
+import { YandexMailService } from '../../yandex-mail/yandex-mail.service';
 
 export class YandexFleetProfileBitrixMapper {
   constructor(
     private readonly bitrixService: BitrixService,
     private readonly bitrixSheetExportService: BitrixSheetExportService,
     private readonly profileRepository: Repository<YandexFleetProfileEntity>,
+    private readonly mailService: YandexMailService,
   ) {}
 
   buildContactPayload(driverProfile: YandexFleetDriverProfile) {
@@ -172,6 +174,7 @@ export class YandexFleetProfileBitrixMapper {
     const flat = this.extractFlatFields(driverProfile, driverCar, lastOrderDate, firstOrderDate);
     const contactPayload = this.buildContactPayload(driverProfile);
     const dealPayload = this.buildDealPayload(profileId, park, driverProfile, driverCar, true);
+    const mailPatch = await this.attachMailSource(dealPayload, flat.phone, park, null);
 
     let contactId: number;
     if (existingContactId) {
@@ -201,6 +204,7 @@ export class YandexFleetProfileBitrixMapper {
     };
     applyBalanceToProfile(profileEntity as YandexFleetProfileEntity, accounts);
     await this.profileRepository.save(profileEntity);
+    if (mailPatch) await this.mailService.markApplied(mailPatch.candidate, String(dealId), park.id);
 
     await this.bitrixSheetExportService.appendNewDeal(
       this.buildNewDealPayload({
@@ -266,6 +270,12 @@ export class YandexFleetProfileBitrixMapper {
     const contactPayload = this.buildContactPayload(driverProfile);
     const dealPayload = this.buildDealPayload(profileId, park, driverProfile, driverCar, false);
     dealPayload.STAGE_ID = stage;
+    const mailPatch = await this.attachMailSource(
+      dealPayload,
+      driverProfile.person.contact_info.phone,
+      park,
+      localState.bitrixDealId ?? null,
+    );
 
     if (localState.bitrixContactId) {
       await this.bitrixService.updateContact(localState.bitrixContactId, contactPayload);
@@ -273,6 +283,9 @@ export class YandexFleetProfileBitrixMapper {
 
     if (localState.bitrixDealId) {
       await this.bitrixService.updateDeal(localState.bitrixDealId, dealPayload);
+      if (mailPatch) {
+        await this.mailService.markApplied(mailPatch.candidate, localState.bitrixDealId, park.id);
+      }
     }
 
     const flat = this.extractFlatFields(driverProfile, driverCar, lastOrderDate, firstOrderDate);
@@ -288,6 +301,19 @@ export class YandexFleetProfileBitrixMapper {
     console.log(
       `[YandexFleetProfileService] Профиль ${profileId} в парке ${park.name} обновлен. Сделка: ${String(localState.bitrixDealId)}. Контакт: ${String(localState.bitrixContactId)}`,
     );
+  }
+
+  private async attachMailSource(
+    dealPayload: Record<string, unknown>,
+    phone: string | null | undefined,
+    park: YandexFleetParkEntity,
+    dealId: string | null,
+  ) {
+    const patch = await this.mailService.sourcePatchForProfile(phone, park, dealId);
+    if (patch && Object.keys(patch.fields).length > 0) {
+      Object.assign(dealPayload, patch.fields);
+    }
+    return patch;
   }
 
   extractFlatFields(

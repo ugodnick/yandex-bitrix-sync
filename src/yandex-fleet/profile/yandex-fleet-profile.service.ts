@@ -18,6 +18,7 @@ import { BitrixSheetExportService } from '../../bitrix/bitrix-sheet-export.servi
 import { OrderStatus } from '../order/yandex-fleet-order.type';
 import { YandexFleetProfileBitrixMapper } from './yandex-fleet-profile-bitrix.mapper';
 import { applyBalanceToProfile } from './yandex-fleet-profile-balance.utils';
+import { YandexMailService } from '../../yandex-mail/yandex-mail.service';
 
 export class YandexFleetProfileService {
   private readonly bitrixMapper: YandexFleetProfileBitrixMapper;
@@ -40,11 +41,13 @@ export class YandexFleetProfileService {
     private yandexFleetProfileRepository: Repository<YandexFleetProfileEntity>,
     private yandexFleetOrderRepository: Repository<YandexFleetOrderEntity>,
     private syncStateRepository: Repository<YandexFleetSyncStateEntity>,
+    yandexMailService: YandexMailService,
   ) {
     this.bitrixMapper = new YandexFleetProfileBitrixMapper(
       bitrixService,
       bitrixSheetExportService,
       yandexFleetProfileRepository,
+      yandexMailService,
     );
   }
 

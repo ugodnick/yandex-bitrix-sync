@@ -16,6 +16,7 @@ export enum YandexFleetSyncType {
   ProfilesNew = 'profiles_new',
   ProfilesExisting = 'profiles_existing',
   Transactions = 'transactions',
+  Mail = 'mail',
 }
 
 export enum YandexFleetSyncStatus {
