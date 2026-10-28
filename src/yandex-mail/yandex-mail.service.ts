@@ -25,7 +25,8 @@ import {
   phonesMatch,
 } from './yandex-mail.match';
 
-const MAIL_UID_BATCH = 40;
+const MAIL_UID_BATCH = 10;
+const MAIL_FETCH_PAUSE_MS = 5000;
 const MAIL_SYNC_OVERLAP_MS = 30 * 60 * 1000;
 const MAIL_SUBJECT = 'Новый исполнитель в диспетчерской';
 
@@ -148,7 +149,12 @@ export class YandexMailService {
 
         const state = await this.beginMailSync(park.id, startedAt);
         try {
-          await this.syncFolder(client, folder.path, knownMessageIds, this.mailSince(state.lastSyncedTo));
+          await this.syncFolder(
+            client,
+            folder.path,
+            knownMessageIds,
+            this.mailSince(state.lastSyncedTo),
+          );
           await this.finishMailSync(state, startedAt);
         } catch (error) {
           await this.failMailSync(state, error);
@@ -161,7 +167,11 @@ export class YandexMailService {
     }
   }
 
-  private folderParkName(folder: { path: string; delimiter?: string | null; parent?: string[] }): string | null {
+  private folderParkName(folder: {
+    path: string;
+    delimiter?: string | null;
+    parent?: string[];
+  }): string | null {
     const parent = folder.parent?.filter(Boolean);
     if (parent && parent.length > 0) return parent[parent.length - 1];
 
@@ -170,7 +180,10 @@ export class YandexMailService {
     return parts.length >= 2 ? parts[parts.length - 2] : null;
   }
 
-  private async beginMailSync(parkId: string, startedAt: Date): Promise<YandexFleetSyncStateEntity> {
+  private async beginMailSync(
+    parkId: string,
+    startedAt: Date,
+  ): Promise<YandexFleetSyncStateEntity> {
     const state = await this.syncStateRepository.findOne({
       where: { parkId, syncType: YandexFleetSyncType.Mail },
     });
@@ -228,6 +241,7 @@ export class YandexMailService {
       for (let offset = 0; offset < list.length; offset += MAIL_UID_BATCH) {
         const batch = list.slice(offset, offset + MAIL_UID_BATCH);
         const freshUids = await this.uidsNotStored(client, batch, folderPath, knownMessageIds);
+        await this.pause();
 
         for (const uid of freshUids) {
           try {
@@ -237,6 +251,7 @@ export class YandexMailService {
             console.error(`[YandexMail] Письмо uid ${uid} в «${folderPath}» не обработано:`, error);
             if (this.isClosedConnection(error)) throw error;
           }
+          await this.pause();
         }
       }
 
@@ -248,6 +263,10 @@ export class YandexMailService {
         // Соединение уже закрыто, блокировку папки снять нельзя.
       }
     }
+  }
+
+  private pause(): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, MAIL_FETCH_PAUSE_MS));
   }
 
   private isClosedConnection(error: unknown): boolean {
@@ -445,7 +464,10 @@ export class YandexMailService {
     return null;
   }
 
-  private async findDeals(digits: string, park: YandexFleetParkEntity): Promise<BitrixDealEntity[]> {
+  private async findDeals(
+    digits: string,
+    park: YandexFleetParkEntity,
+  ): Promise<BitrixDealEntity[]> {
     const last10 = digits.slice(-10);
     const normalizedPhone =
       "replace(replace(replace(replace(replace(ifnull(c.phone, ''), '+', ''), ' ', ''), '-', ''), '(', ''), ')', '')";
