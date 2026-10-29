@@ -139,6 +139,7 @@ export class BitrixSheetExportService {
       toSheetString(resolveSourcesLabel(deal.sourcesRaw)),
       toSheetString(resolveBitrixUserNames(deal.firstOrderTransferredByRaw, this.getUserNames())),
       toSheetString(formatBitrixUfDate(deal.firstOrderTransferredAtRaw)),
+      toSheetString(resolveBitrixUserNames(deal.assignedById, this.getUserNames())),
     ];
   }
 

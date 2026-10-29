@@ -61,6 +61,9 @@ export class BitrixDealEntity {
   @Column({ type: 'varchar', name: 'first_order_transferred_at_raw', nullable: true })
   firstOrderTransferredAtRaw: string | null;
 
+  @Column({ type: 'varchar', name: 'assigned_by_id', nullable: true })
+  assignedById: string | null;
+
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 

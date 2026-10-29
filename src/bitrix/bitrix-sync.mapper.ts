@@ -65,6 +65,8 @@ export function dealFieldsToEntity(fields: BitrixDealFields): BitrixDealEntity {
   entity.firstOrderTransferredAtRaw = serializeUfValue(
     fields[BITRIX_FIELDS.FIRST_ORDER_TRANSFERRED_AT],
   );
+  const assignedById = fields.ASSIGNED_BY_ID != null ? String(fields.ASSIGNED_BY_ID) : '';
+  entity.assignedById = assignedById && assignedById !== '0' ? assignedById : null;
   return entity;
 }
 

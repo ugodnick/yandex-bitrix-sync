@@ -316,6 +316,7 @@ export interface BitrixDealFields {
   COMPANY_ID?: number;
   CONTACT_ID?: number;
   CONTACT_IDS?: number[];
+  ASSIGNED_BY_ID?: string | number;
   BEGINDATE?: string;
   CLOSEDATE?: string;
   OPENED?: BitrixYesOrNoType;

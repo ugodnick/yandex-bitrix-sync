@@ -168,6 +168,7 @@ export enum BitrixDealsColumn {
   Sources = 'Источники',
   FirstOrderTransferredBy = 'Вывод на первый заказ (кто перенес)',
   FirstOrderTransferredAt = 'Вывод на первый заказ (когда перенесено)',
+  AssignedBy = 'Ответственный',
 }
 
 export enum BitrixCallsColumn {
@@ -220,6 +221,7 @@ export const BITRIX_SHEET_COLUMN_ORDER: {
     BitrixDealsColumn.Sources,
     BitrixDealsColumn.FirstOrderTransferredBy,
     BitrixDealsColumn.FirstOrderTransferredAt,
+    BitrixDealsColumn.AssignedBy,
   ],
   [BitrixSheetName.Calls]: [
     BitrixCallsColumn.Manager,
