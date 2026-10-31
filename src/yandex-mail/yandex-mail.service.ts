@@ -29,7 +29,7 @@ const MAIL_UID_BATCH = 10;
 const MAIL_FETCH_PAUSE_MS = 5000;
 const MAIL_RECONNECT_ATTEMPTS = 5;
 const MAIL_SYNC_OVERLAP_MS = 30 * 60 * 1000;
-const MAIL_SUBJECT = 'Новый исполнитель в диспетчерской';
+const MAIL_SUBJECT = 'Новый исполнитель';
 
 export interface MailSourcePatch {
   candidate: YandexMailCandidateEntity;

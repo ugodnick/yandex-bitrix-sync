@@ -268,7 +268,7 @@ function scheduleYandexMailSync() {
   cron.schedule(
     '*/30 * * * *',
     () => queue.enqueue('poll', () => container.get(YandexMailService).poll()),
-    { runOnInit: true },
+    { runOnInit: false },
   );
 }
 

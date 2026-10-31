@@ -6,7 +6,7 @@ export interface ParsedCandidateMail {
   phoneDigits: string;
 }
 
-const PARK_PATTERN = /В Диспетчерскую\s+(.+?)\s+добавлен новый/i;
+const PARK_PATTERN = /В (?:Диспетчерскую|личный кабинет)\s+(.+?)\s+добавлен новый/i;
 const SOURCE_PATTERN = /из источника\s+([^\n:]+)/i;
 const NAME_PATTERN = /ФИО:\s*([^\n]+)/i;
 const PHONE_PATTERN = /Номер телефона:\s*([+\d][\d \t()-]{9,})/i;
