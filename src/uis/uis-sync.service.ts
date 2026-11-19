@@ -32,6 +32,13 @@ const INITIAL_LOOKBACK_MONTHS = 3;
 const SQLITE_MAX_VARIABLES = 999;
 const UIS_UPSERT_BATCH_SIZE = Math.floor(SQLITE_MAX_VARIABLES / 40);
 
+function isUniqueViolation(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const candidate = error as { code?: string; message?: string; driverError?: { code?: string } };
+  const code = candidate.driverError?.code ?? candidate.code;
+  return code === 'SQLITE_CONSTRAINT' || (candidate.message?.includes('UNIQUE constraint failed') ?? false);
+}
+
 async function upsertInChunks<T extends object>(
   repository: Repository<T>,
   entities: T[],
@@ -59,13 +66,8 @@ export class UisSyncService {
     private readonly syncStateRepository: Repository<UisSyncStateEntity>,
   ) {}
 
-  async ensureInitialSync(): Promise<void> {
-    const [calls, legs] = await Promise.all([
-      this.getOrCreateSyncState(UisSyncType.Calls),
-      this.getOrCreateSyncState(UisSyncType.CallLegs),
-    ]);
-    if (calls.lastSyncedTo && legs.lastSyncedTo) return;
-    await this.syncHourly();
+  ensureInitialSync(): Promise<void> {
+    return this.syncHourly();
   }
 
   syncHourly(): Promise<void> {
@@ -175,12 +177,17 @@ export class UisSyncService {
   }
 
   private async getOrCreateSyncState(syncType: UisSyncType): Promise<UisSyncStateEntity> {
-    let state = await this.syncStateRepository.findOne({ where: { syncType } });
-    if (!state) {
-      state = this.syncStateRepository.create({ syncType, lastSyncedTo: null });
-      await this.syncStateRepository.save(state);
+    const existing = await this.syncStateRepository.findOne({ where: { syncType } });
+    if (existing) return existing;
+
+    try {
+      const state = this.syncStateRepository.create({ syncType, lastSyncedTo: null });
+      return await this.syncStateRepository.save(state);
+    } catch (error) {
+      const again = await this.syncStateRepository.findOne({ where: { syncType } });
+      if (again && isUniqueViolation(error)) return again;
+      throw error;
     }
-    return state;
   }
 
   private async updateSyncState(syncType: UisSyncType, lastSyncedTo: Date): Promise<void> {

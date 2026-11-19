@@ -400,7 +400,7 @@ function scheduleUisSync() {
       queue.enqueue('hourly', async () => {
         await container.get(UisSyncService).syncHourly();
       }),
-    { timezone: 'Asia/Vladivostok', runOnInit: true },
+    { timezone: 'Asia/Vladivostok', runOnInit: false },
   );
 }
 
