@@ -13,6 +13,7 @@ export enum SheetType {
   Eat = 'eat',
   Cargo = 'cargo',
   Bitrix = 'bitrix',
+  Uis = 'uis',
 }
 
 export enum ContractorsColumn {
@@ -234,6 +235,165 @@ export const BITRIX_SHEET_COLUMN_ORDER: {
   ],
 };
 
+export enum UisSheetName {
+  Calls = 'Звонки',
+  CallLegs = 'Плечи',
+  Employees = 'Сотрудники',
+  Groups = 'Группы',
+  SipLines = 'SIP',
+  Numbers = 'Номера',
+  Scenarios = 'Сценарии',
+}
+
+export enum UisCallsColumn {
+  Id = 'ID',
+  Start = 'Начало (UTC+10)',
+  Finish = 'Окончание (UTC+10)',
+  Direction = 'Направление',
+  Lost = 'Потерян',
+  ContactPhone = 'Номер абонента',
+  VirtualPhone = 'Виртуальный номер',
+  Wait = 'Ожидание, сек',
+  Talk = 'Разговор, сек',
+  Duration = 'Длительность, сек',
+  FinishReason = 'Причина завершения',
+  Employee = 'Сотрудник',
+  Scenario = 'Сценарий',
+  Source = 'Источник',
+  Records = 'Записи',
+}
+
+export enum UisCallLegsColumn {
+  Id = 'ID',
+  SessionId = 'ID сессии',
+  Start = 'Начало (UTC+10)',
+  Duration = 'Длительность, сек',
+  Direction = 'Направление',
+  Calling = 'Кто звонил',
+  Called = 'Кому',
+  Employee = 'Сотрудник',
+  Group = 'Группа',
+  FinishReason = 'Причина',
+  Scenario = 'Сценарий',
+}
+
+export enum UisEmployeesColumn {
+  Id = 'ID',
+  FullName = 'ФИО',
+  Email = 'Email',
+  Status = 'Статус',
+  Extension = 'Внутренний номер',
+  Phones = 'Телефоны',
+}
+
+export enum UisGroupsColumn {
+  Id = 'ID',
+  Name = 'Название',
+}
+
+export enum UisSipLinesColumn {
+  Id = 'ID',
+  Phone = 'Номер',
+  Type = 'Тип',
+  Status = 'Статус',
+  Employee = 'Сотрудник',
+  VirtualPhone = 'Виртуальный номер',
+  Billing = 'Биллинг',
+  Registration = 'Регистрация',
+}
+
+export enum UisNumbersColumn {
+  Id = 'ID',
+  Phone = 'Номер',
+  Status = 'Статус',
+  Type = 'Тип',
+  Name = 'Название',
+  Comment = 'Комментарий',
+}
+
+export enum UisScenariosColumn {
+  Id = 'ID',
+  Name = 'Название',
+  Numbers = 'Номера',
+}
+
+export type UisSheetColumnsMap = {
+  [UisSheetName.Calls]: UisCallsColumn;
+  [UisSheetName.CallLegs]: UisCallLegsColumn;
+  [UisSheetName.Employees]: UisEmployeesColumn;
+  [UisSheetName.Groups]: UisGroupsColumn;
+  [UisSheetName.SipLines]: UisSipLinesColumn;
+  [UisSheetName.Numbers]: UisNumbersColumn;
+  [UisSheetName.Scenarios]: UisScenariosColumn;
+};
+
+export const UIS_SHEET_COLUMN_ORDER: {
+  [K in UisSheetName]: ReadonlyArray<UisSheetColumnsMap[K]>;
+} = {
+  [UisSheetName.Calls]: [
+    UisCallsColumn.Id,
+    UisCallsColumn.Start,
+    UisCallsColumn.Finish,
+    UisCallsColumn.Direction,
+    UisCallsColumn.Lost,
+    UisCallsColumn.ContactPhone,
+    UisCallsColumn.VirtualPhone,
+    UisCallsColumn.Wait,
+    UisCallsColumn.Talk,
+    UisCallsColumn.Duration,
+    UisCallsColumn.FinishReason,
+    UisCallsColumn.Employee,
+    UisCallsColumn.Scenario,
+    UisCallsColumn.Source,
+    UisCallsColumn.Records,
+  ],
+  [UisSheetName.CallLegs]: [
+    UisCallLegsColumn.Id,
+    UisCallLegsColumn.SessionId,
+    UisCallLegsColumn.Start,
+    UisCallLegsColumn.Duration,
+    UisCallLegsColumn.Direction,
+    UisCallLegsColumn.Calling,
+    UisCallLegsColumn.Called,
+    UisCallLegsColumn.Employee,
+    UisCallLegsColumn.Group,
+    UisCallLegsColumn.FinishReason,
+    UisCallLegsColumn.Scenario,
+  ],
+  [UisSheetName.Employees]: [
+    UisEmployeesColumn.Id,
+    UisEmployeesColumn.FullName,
+    UisEmployeesColumn.Email,
+    UisEmployeesColumn.Status,
+    UisEmployeesColumn.Extension,
+    UisEmployeesColumn.Phones,
+  ],
+  [UisSheetName.Groups]: [UisGroupsColumn.Id, UisGroupsColumn.Name],
+  [UisSheetName.SipLines]: [
+    UisSipLinesColumn.Id,
+    UisSipLinesColumn.Phone,
+    UisSipLinesColumn.Type,
+    UisSipLinesColumn.Status,
+    UisSipLinesColumn.Employee,
+    UisSipLinesColumn.VirtualPhone,
+    UisSipLinesColumn.Billing,
+    UisSipLinesColumn.Registration,
+  ],
+  [UisSheetName.Numbers]: [
+    UisNumbersColumn.Id,
+    UisNumbersColumn.Phone,
+    UisNumbersColumn.Status,
+    UisNumbersColumn.Type,
+    UisNumbersColumn.Name,
+    UisNumbersColumn.Comment,
+  ],
+  [UisSheetName.Scenarios]: [
+    UisScenariosColumn.Id,
+    UisScenariosColumn.Name,
+    UisScenariosColumn.Numbers,
+  ],
+};
+
 export type CellValue = string | number | boolean | null;
 
 export type YandexFleetSheetRow<S extends YandexFleetSheetName> = Partial<
@@ -244,11 +404,17 @@ export type BitrixSheetRow<S extends BitrixSheetName> = Partial<
   Record<BitrixSheetColumnsMap[S], CellValue>
 >;
 
-export type SheetName = YandexFleetSheetName | BitrixSheetName;
+export type UisSheetRow<S extends UisSheetName> = Partial<Record<UisSheetColumnsMap[S], CellValue>>;
 
-export type SheetRow<S extends SheetName> =
-  | YandexFleetSheetRow<Exclude<S, BitrixSheetName>>
-  | BitrixSheetRow<Exclude<S, YandexFleetSheetName>>;
+export type SheetName = YandexFleetSheetName | BitrixSheetName | UisSheetName;
+
+export type SheetRow<S extends SheetName> = S extends YandexFleetSheetName
+  ? YandexFleetSheetRow<S>
+  : S extends BitrixSheetName
+    ? BitrixSheetRow<S>
+    : S extends UisSheetName
+      ? UisSheetRow<S>
+      : never;
 
 export const SHEET_COLUMN_ORDER = {
   ...YANDEX_FLEET_SHEET_COLUMN_ORDER,
@@ -262,6 +428,7 @@ export interface GoogleSheetsAPIServiceOptions {
   eatSpreadsheetId: string;
   cargoSpreadsheetId: string;
   bitrixSpreadsheetId: string;
+  uisSpreadsheetId: string;
   valueInputOption?: 'RAW' | 'USER_ENTERED';
 }
 

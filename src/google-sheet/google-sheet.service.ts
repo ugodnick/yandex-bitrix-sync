@@ -10,6 +10,8 @@ import {
   SheetName,
   SheetRow,
   SheetType,
+  UIS_SHEET_COLUMN_ORDER,
+  UisSheetName,
 } from './google-sheet.type';
 
 function normalizeSheetCell(cell: CellValue): CellValue {
@@ -24,6 +26,7 @@ export class GoogleSheetsAPIService {
   private readonly eatSpreadsheetId: string;
   private readonly cargoSpreadsheetId: string;
   private readonly bitrixSpreadsheetId: string;
+  private readonly uisSpreadsheetId: string;
   private readonly valueInputOption: 'RAW' | 'USER_ENTERED';
 
   constructor(options: GoogleSheetsAPIServiceOptions) {
@@ -34,6 +37,7 @@ export class GoogleSheetsAPIService {
       eatSpreadsheetId,
       cargoSpreadsheetId,
       bitrixSpreadsheetId,
+      uisSpreadsheetId,
     } = options;
 
     if (!fs.existsSync(keyFilePath)) {
@@ -51,6 +55,7 @@ export class GoogleSheetsAPIService {
     this.eatSpreadsheetId = eatSpreadsheetId;
     this.cargoSpreadsheetId = cargoSpreadsheetId;
     this.bitrixSpreadsheetId = bitrixSpreadsheetId;
+    this.uisSpreadsheetId = uisSpreadsheetId;
     this.valueInputOption = options.valueInputOption ?? 'RAW';
   }
 
@@ -120,7 +125,7 @@ export class GoogleSheetsAPIService {
       };
     }
 
-    const columnOrder = SHEET_COLUMN_ORDER[sheet];
+    const columnOrder = this.columnOrder(sheet, sheetType);
     const rawRows: CellValue[][] = rows.map((row) =>
       columnOrder.map((col) => {
         const value = (row as Record<string, CellValue | undefined>)[col];
@@ -192,7 +197,7 @@ export class GoogleSheetsAPIService {
   }
 
   public async ensureHeaders<S extends SheetName>(sheet: S, sheetType: SheetType): Promise<void> {
-    const columnOrder = SHEET_COLUMN_ORDER[sheet];
+    const columnOrder = this.columnOrder(sheet, sheetType);
     const lastColLetter = GoogleSheetsAPIService.columnIndexToLetter(columnOrder.length);
     const range = `${sheet}!A1:${lastColLetter}1`;
 
@@ -264,6 +269,13 @@ export class GoogleSheetsAPIService {
     });
   }
 
+  private columnOrder(sheet: SheetName, sheetType: SheetType): readonly string[] {
+    if (sheetType === SheetType.Uis) {
+      return UIS_SHEET_COLUMN_ORDER[sheet as UisSheetName];
+    }
+    return SHEET_COLUMN_ORDER[sheet as keyof typeof SHEET_COLUMN_ORDER];
+  }
+
   private getSpreadsheetId(sheet: SheetType): string {
     switch (sheet) {
       case SheetType.Delivery:
@@ -276,6 +288,8 @@ export class GoogleSheetsAPIService {
         return this.cargoSpreadsheetId;
       case SheetType.Bitrix:
         return this.bitrixSpreadsheetId;
+      case SheetType.Uis:
+        return this.uisSpreadsheetId;
       default:
         throw new Error(`Unknown sheet type: ${sheet}`);
     }

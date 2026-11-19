@@ -1,0 +1,191 @@
+import { Repository } from 'typeorm';
+import { chunkArray } from '../chunk-array';
+import { toIsoPeriodStartMonthsAgo } from '../bitrix/bitrix-sheet.utils';
+import { UisCallEntity } from './entity/uis-call.entity';
+import { UisCallLegEntity } from './entity/uis-call-leg.entity';
+import {
+  UisEmployeeEntity,
+  UisEmployeeGroupEntity,
+  UisEmployeePositionEntity,
+  UisScenarioEntity,
+  UisSipLineEntity,
+  UisStatusEntity,
+  UisVirtualNumberEntity,
+} from './entity/uis-directory.entity';
+import { UisSyncStateEntity, UisSyncType } from './entity/uis-sync-state.entity';
+import { UIS_CALL_FIELDS, UIS_CALL_LEG_FIELDS, UisClient, UisRow } from './uis-client';
+import { UisApiError } from './uis-api.error';
+import { formatUisDateTime, reportWindows } from './uis-date';
+import {
+  callLegRowToEntity,
+  callRowToEntity,
+  employeeGroupRowToEntity,
+  employeePositionRowToEntity,
+  employeeRowToEntity,
+  scenarioRowToEntity,
+  sipLineRowToEntity,
+  statusRowToEntity,
+  virtualNumberRowToEntity,
+} from './uis-sync.mapper';
+
+const INITIAL_LOOKBACK_MONTHS = 3;
+const SQLITE_MAX_VARIABLES = 999;
+const UIS_UPSERT_BATCH_SIZE = Math.floor(SQLITE_MAX_VARIABLES / 40);
+
+async function upsertInChunks<T extends object>(
+  repository: Repository<T>,
+  entities: T[],
+  conflictPaths: string[],
+): Promise<void> {
+  for (const chunk of chunkArray(entities, UIS_UPSERT_BATCH_SIZE)) {
+    await repository.upsert(chunk, conflictPaths);
+  }
+}
+
+export class UisSyncService {
+  private running: Promise<void> | null = null;
+
+  constructor(
+    private readonly client: UisClient,
+    private readonly callRepository: Repository<UisCallEntity>,
+    private readonly callLegRepository: Repository<UisCallLegEntity>,
+    private readonly employeeRepository: Repository<UisEmployeeEntity>,
+    private readonly employeeGroupRepository: Repository<UisEmployeeGroupEntity>,
+    private readonly employeePositionRepository: Repository<UisEmployeePositionEntity>,
+    private readonly statusRepository: Repository<UisStatusEntity>,
+    private readonly sipLineRepository: Repository<UisSipLineEntity>,
+    private readonly virtualNumberRepository: Repository<UisVirtualNumberEntity>,
+    private readonly scenarioRepository: Repository<UisScenarioEntity>,
+    private readonly syncStateRepository: Repository<UisSyncStateEntity>,
+  ) {}
+
+  async ensureInitialSync(): Promise<void> {
+    const [calls, legs] = await Promise.all([
+      this.getOrCreateSyncState(UisSyncType.Calls),
+      this.getOrCreateSyncState(UisSyncType.CallLegs),
+    ]);
+    if (calls.lastSyncedTo && legs.lastSyncedTo) return;
+    await this.syncHourly();
+  }
+
+  syncHourly(): Promise<void> {
+    if (this.running) return this.running;
+    this.running = this.runSync().finally(() => {
+      this.running = null;
+    });
+    return this.running;
+  }
+
+  private async runSync(): Promise<void> {
+    const callsState = await this.getOrCreateSyncState(UisSyncType.Calls);
+    if (!callsState.lastSyncedTo) {
+      await this.syncDirectories();
+    }
+
+    await this.syncReport(UisSyncType.Calls, 'get.calls_report', UIS_CALL_FIELDS, (row) =>
+      callRowToEntity(row),
+    );
+    await this.syncReport(
+      UisSyncType.CallLegs,
+      'get.call_legs_report',
+      UIS_CALL_LEG_FIELDS,
+      (row) => callLegRowToEntity(row),
+    );
+  }
+
+  private async syncDirectories(): Promise<void> {
+    await this.syncDirectory('get.employees', this.employeeRepository, employeeRowToEntity);
+    await this.syncDirectory(
+      'get.group_employees',
+      this.employeeGroupRepository,
+      employeeGroupRowToEntity,
+    );
+    await this.syncDirectory(
+      'get.employee_positions',
+      this.employeePositionRepository,
+      employeePositionRowToEntity,
+    );
+    await this.syncDirectory('get.statuses', this.statusRepository, statusRowToEntity);
+    await this.syncDirectory('get.sip_lines', this.sipLineRepository, sipLineRowToEntity);
+    await this.syncDirectory(
+      'get.virtual_numbers',
+      this.virtualNumberRepository,
+      virtualNumberRowToEntity,
+    );
+    await this.syncDirectory('get.scenarios', this.scenarioRepository, scenarioRowToEntity);
+    await this.updateSyncState(UisSyncType.Directories, new Date());
+  }
+
+  private async syncDirectory<T extends object>(
+    method: string,
+    repository: Repository<T>,
+    mapRow: (row: UisRow) => T | null,
+  ): Promise<void> {
+    try {
+      const rows = await this.client.list(method);
+      const entities = rows.flatMap((row) => {
+        const entity = mapRow(row);
+        return entity ? [entity] : [];
+      });
+      if (entities.length > 0) {
+        await upsertInChunks(repository, entities, ['uisId']);
+      }
+      console.log(`[UIS] ${method}: ${entities.length}`);
+    } catch (error) {
+      if (error instanceof UisApiError && error.isSkippable) {
+        console.warn(`[UIS] ${method} пропущен: ${error.mnemonic} ${error.message}`);
+        return;
+      }
+      throw error;
+    }
+  }
+
+  private async syncReport<T extends object>(
+    syncType: UisSyncType,
+    method: string,
+    fields: readonly string[],
+    mapRow: (row: UisRow) => T | null,
+  ): Promise<void> {
+    const state = await this.getOrCreateSyncState(syncType);
+    const till = new Date();
+    const from = state.lastSyncedTo ?? new Date(toIsoPeriodStartMonthsAgo(INITIAL_LOOKBACK_MONTHS));
+    const windows = reportWindows(from, till);
+    if (windows.length === 0) return;
+
+    const repository = this.repositoryFor(syncType);
+    for (const window of windows) {
+      const rows = await this.client.listReport(method, window.from, window.till, fields);
+      const entities = rows.flatMap((row) => {
+        const entity = mapRow(row);
+        return entity ? [entity] : [];
+      });
+      if (entities.length > 0) {
+        await upsertInChunks(repository as Repository<T>, entities, ['uisId']);
+      }
+      await this.updateSyncState(syncType, window.till);
+      console.log(
+        `[UIS] ${method}: ${entities.length}, ${formatUisDateTime(window.from)} — ${formatUisDateTime(window.till)}`,
+      );
+    }
+  }
+
+  private repositoryFor(syncType: UisSyncType): Repository<UisCallEntity | UisCallLegEntity> {
+    if (syncType === UisSyncType.CallLegs) return this.callLegRepository;
+    return this.callRepository;
+  }
+
+  private async getOrCreateSyncState(syncType: UisSyncType): Promise<UisSyncStateEntity> {
+    let state = await this.syncStateRepository.findOne({ where: { syncType } });
+    if (!state) {
+      state = this.syncStateRepository.create({ syncType, lastSyncedTo: null });
+      await this.syncStateRepository.save(state);
+    }
+    return state;
+  }
+
+  private async updateSyncState(syncType: UisSyncType, lastSyncedTo: Date): Promise<void> {
+    const state = await this.getOrCreateSyncState(syncType);
+    state.lastSyncedTo = lastSyncedTo;
+    await this.syncStateRepository.save(state);
+  }
+}

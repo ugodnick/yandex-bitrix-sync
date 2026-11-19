@@ -11,6 +11,8 @@ interface AppConfig {
   googleSheetsEatSheetId: string;
   googleSheetsCargoSheetId: string;
   googleSheetsBitrixSheetId: string;
+  googleSheetsUisSheetId: string | null;
+  uisAccessToken: string | null;
   yandexMail: YandexMailConfig | null;
 }
 
@@ -25,6 +27,8 @@ export function loadConfig(): AppConfig {
 
   const mailUser = process.env.YANDEX_MAIL_USER?.trim() ?? '';
   const mailPassword = process.env.YANDEX_MAIL_PASSWORD?.trim() ?? '';
+  const uisAccessToken = process.env.UIS_ACCESS_TOKEN?.trim() ?? '';
+  const googleSheetsUisSheetId = process.env.GOOGLE_SHEET_UIS_ID?.trim() ?? '';
 
   return {
     inboundWebhookUrl: requireEnv('BITRIX_INBOUND_WEBHOOK_URL'),
@@ -34,6 +38,8 @@ export function loadConfig(): AppConfig {
     googleSheetsEatSheetId: requireEnv('GOOGLE_SHEET_EAT_ID'),
     googleSheetsCargoSheetId: requireEnv('GOOGLE_SHEET_CARGO_ID'),
     googleSheetsBitrixSheetId: requireEnv('GOOGLE_SHEET_BITRIX_ID'),
+    googleSheetsUisSheetId: googleSheetsUisSheetId || null,
+    uisAccessToken: uisAccessToken || null,
     yandexMail: mailUser && mailPassword ? { user: mailUser, password: mailPassword } : null,
   };
 }

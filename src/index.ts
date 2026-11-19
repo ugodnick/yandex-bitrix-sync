@@ -36,6 +36,21 @@ import { BitrixUserEntity } from './bitrix/entity/bitrix-user.entity';
 import { BitrixSyncStateEntity } from './bitrix/entity/bitrix-sync-state.entity';
 import { YandexMailCandidateEntity } from './yandex-mail/yandex-mail-candidate.entity';
 import { YandexMailService } from './yandex-mail/yandex-mail.service';
+import { UisClient } from './uis/uis-client';
+import { UisSyncService } from './uis/uis-sync.service';
+import { UisSheetExportService } from './uis/uis-sheet-export.service';
+import { UisCallEntity } from './uis/entity/uis-call.entity';
+import { UisCallLegEntity } from './uis/entity/uis-call-leg.entity';
+import {
+  UisEmployeeEntity,
+  UisEmployeeGroupEntity,
+  UisEmployeePositionEntity,
+  UisScenarioEntity,
+  UisSipLineEntity,
+  UisStatusEntity,
+  UisVirtualNumberEntity,
+} from './uis/entity/uis-directory.entity';
+import { UisSyncStateEntity } from './uis/entity/uis-sync-state.entity';
 
 dotenv.config();
 
@@ -173,8 +188,53 @@ function initServices(database: DataSource): void {
         eatSpreadsheetId: config.googleSheetsEatSheetId,
         cargoSpreadsheetId: config.googleSheetsCargoSheetId,
         bitrixSpreadsheetId: config.googleSheetsBitrixSheetId,
+        uisSpreadsheetId: config.googleSheetsUisSheetId ?? '',
       }),
   );
+  const uisAccessToken = config.uisAccessToken;
+  if (uisAccessToken) {
+    const uisCallRepository = database.getRepository(UisCallEntity);
+    const uisCallLegRepository = database.getRepository(UisCallLegEntity);
+    const uisEmployeeRepository = database.getRepository(UisEmployeeEntity);
+    const uisEmployeeGroupRepository = database.getRepository(UisEmployeeGroupEntity);
+    const uisSipLineRepository = database.getRepository(UisSipLineEntity);
+    const uisVirtualNumberRepository = database.getRepository(UisVirtualNumberEntity);
+    const uisScenarioRepository = database.getRepository(UisScenarioEntity);
+
+    container.add(
+      UisSyncService,
+      () =>
+        new UisSyncService(
+          new UisClient(uisAccessToken),
+          uisCallRepository,
+          uisCallLegRepository,
+          uisEmployeeRepository,
+          uisEmployeeGroupRepository,
+          database.getRepository(UisEmployeePositionEntity),
+          database.getRepository(UisStatusEntity),
+          uisSipLineRepository,
+          uisVirtualNumberRepository,
+          uisScenarioRepository,
+          database.getRepository(UisSyncStateEntity),
+        ),
+    );
+    if (config.googleSheetsUisSheetId) {
+      container.add(
+        UisSheetExportService,
+        () =>
+          new UisSheetExportService(
+            container.get(GoogleSheetsAPIService),
+            uisCallRepository,
+            uisCallLegRepository,
+            uisEmployeeRepository,
+            uisEmployeeGroupRepository,
+            uisSipLineRepository,
+            uisVirtualNumberRepository,
+            uisScenarioRepository,
+          ),
+      );
+    }
+  }
   container.add(
     YandexFleetOrderService,
     () =>
@@ -230,6 +290,9 @@ function scheduleGoogleSheetExport() {
         const bitrixExportService = container.get(BitrixSheetExportService);
         await yandexExportService.exportToGoogleSheets();
         await bitrixExportService.exportToGoogleSheets();
+        if (config.uisAccessToken && config.googleSheetsUisSheetId) {
+          await container.get(UisSheetExportService).exportToGoogleSheets();
+        }
       }),
     { timezone: 'Asia/Vladivostok', runOnInit: false },
   );
@@ -326,6 +389,21 @@ function scheduleParksOrdersSync() {
   );
 }
 
+function scheduleUisSync() {
+  if (!config.uisAccessToken) return;
+
+  const queue = new Queue('scheduleUisSync');
+
+  cron.schedule(
+    '15 */1 * * *',
+    () =>
+      queue.enqueue('hourly', async () => {
+        await container.get(UisSyncService).syncHourly();
+      }),
+    { timezone: 'Asia/Vladivostok', runOnInit: true },
+  );
+}
+
 function scheduleBitrixSync() {
   const queue = new Queue('scheduleBitrixSync');
 
@@ -380,9 +458,17 @@ async function bootstrap() {
   scheduleParksOrdersSync();
   scheduleParksProfilesSync();
   scheduleBitrixSync();
+  scheduleUisSync();
   scheduleGoogleSheetExport();
   scheduleSupplyHoursSync();
   scheduleYandexMailSync();
+
+  if (config.uisAccessToken) {
+    container
+      .get(UisSyncService)
+      .ensureInitialSync()
+      .catch((error) => console.error('UIS initial sync failed:', error));
+  }
 
   container
     .get(BitrixSyncService)
