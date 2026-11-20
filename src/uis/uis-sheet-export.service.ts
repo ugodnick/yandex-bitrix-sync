@@ -1,6 +1,6 @@
 import { MoreThanOrEqual, Repository } from 'typeorm';
 import {
-  formatBitrixDateInTz,
+  formatExportTitleDate,
   toIsoPeriodStartMonthsAgo,
   toSheetString,
 } from '../bitrix/bitrix-sheet.utils';
@@ -8,6 +8,7 @@ import { GoogleSheetsAPIService } from '../google-sheet/google-sheet.service';
 import { SheetType, UisSheetName } from '../google-sheet/google-sheet.type';
 import { UisCallEntity } from './entity/uis-call.entity';
 import { UisCallLegEntity } from './entity/uis-call-leg.entity';
+import { UisEmployeeStatusStatEntity } from './entity/uis-employee-status-stat.entity';
 import {
   UisEmployeeEntity,
   UisEmployeeGroupEntity,
@@ -15,64 +16,17 @@ import {
   UisSipLineEntity,
   UisVirtualNumberEntity,
 } from './entity/uis-directory.entity';
+import {
+  directionLabel,
+  formatDate,
+  formatDay,
+  formatDuration,
+  joinJson,
+  recordLinks,
+  yesNo,
+} from './uis-sheet.utils';
 
 const CALLS_EXPORT_MONTHS = 3;
-
-function directionLabel(value: string | null): string {
-  if (value === 'in') return 'Входящий';
-  if (value === 'out') return 'Исходящий';
-  return value ?? '';
-}
-
-function yesNo(value: boolean | null): string {
-  if (value === true) return 'Да';
-  if (value === false) return 'Нет';
-  return '';
-}
-
-function formatDate(value: Date | null): string {
-  return value ? formatBitrixDateInTz(value.toISOString(), true) : '';
-}
-
-function joinJson(json: string | null, key?: string): string {
-  if (!json) return '';
-  try {
-    const parsed = JSON.parse(json) as unknown;
-    if (!Array.isArray(parsed)) return '';
-    return parsed
-      .map((item) => {
-        if (item === null || item === undefined) return '';
-        if (typeof item === 'object') {
-          if (!key) return '';
-          const field = (item as Record<string, unknown>)[key];
-          return field === null || field === undefined ? '' : String(field);
-        }
-        return String(item);
-      })
-      .filter(Boolean)
-      .join(', ');
-  } catch {
-    return '';
-  }
-}
-
-function recordLinks(call: UisCallEntity): string {
-  const links: string[] = [];
-  if (call.fullRecordFileLink) links.push(call.fullRecordFileLink);
-  if (!call.communicationId || !call.callRecords) return links.join('\n');
-
-  try {
-    const records = JSON.parse(call.callRecords) as unknown;
-    if (!Array.isArray(records)) return links.join('\n');
-    for (const record of records) {
-      if (record === null || record === undefined || record === '') continue;
-      links.push(`https://app.uiscom.ru/system/media/talk/${call.communicationId}/${record}/`);
-    }
-  } catch {
-    return links.join('\n');
-  }
-  return links.join('\n');
-}
 
 export class UisSheetExportService {
   constructor(
@@ -84,6 +38,7 @@ export class UisSheetExportService {
     private readonly sipLineRepository: Repository<UisSipLineEntity>,
     private readonly virtualNumberRepository: Repository<UisVirtualNumberEntity>,
     private readonly scenarioRepository: Repository<UisScenarioEntity>,
+    private readonly employeeStatusRepository: Repository<UisEmployeeStatusStatEntity>,
   ) {}
 
   async exportToGoogleSheets(): Promise<void> {
@@ -96,6 +51,12 @@ export class UisSheetExportService {
     await this.writeSheet(UisSheetName.SipLines, await this.sipRows());
     await this.writeSheet(UisSheetName.Numbers, await this.numberRows());
     await this.writeSheet(UisSheetName.Scenarios, await this.scenarioRows());
+    await this.writeSheet(UisSheetName.EmployeeStatus, await this.employeeStatusRows());
+
+    await this.googleSheetsApiService.renameSpreadsheet(
+      SheetType.Uis,
+      `Выгрузка UIS — ${formatExportTitleDate()}`,
+    );
   }
 
   private async callRows(cutoff: Date): Promise<string[][]> {
@@ -193,6 +154,26 @@ export class UisSheetExportService {
       toSheetString(scenario.uisId),
       toSheetString(scenario.name),
       toSheetString(joinJson(scenario.virtualPhoneNumbers)),
+    ]);
+  }
+
+  private async employeeStatusRows(): Promise<string[][]> {
+    const cutoffDay = toIsoPeriodStartMonthsAgo(CALLS_EXPORT_MONTHS).slice(0, 10);
+    const rows = await this.employeeStatusRepository.find({
+      where: { statDate: MoreThanOrEqual(cutoffDay) },
+      order: { statDate: 'DESC', fullName: 'ASC' },
+    });
+    return rows.map((row) => [
+      toSheetString(formatDay(row.statDate)),
+      toSheetString(row.fullName),
+      toSheetString(joinJson(row.groups, 'group_name')),
+      toSheetString(formatDuration(row.availableSeconds)),
+      toSheetString(formatDuration(row.breakSeconds)),
+      toSheetString(formatDuration(row.doNotDisturbSeconds)),
+      toSheetString(formatDuration(row.notAtWorkplaceSeconds)),
+      toSheetString(formatDuration(row.notAtWorkSeconds)),
+      toSheetString(formatDuration(row.autoOutCallSeconds)),
+      toSheetString(formatDuration(row.unknownSeconds)),
     ]);
   }
 

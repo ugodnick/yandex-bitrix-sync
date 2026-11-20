@@ -1,5 +1,6 @@
 import { UisCallEntity } from './entity/uis-call.entity';
 import { UisCallLegEntity } from './entity/uis-call-leg.entity';
+import { UisEmployeeStatusStatEntity } from './entity/uis-employee-status-stat.entity';
 import {
   UisEmployeeEntity,
   UisEmployeeGroupEntity,
@@ -225,5 +226,36 @@ export function scenarioRowToEntity(row: UisRow): UisScenarioEntity | null {
   entity.virtualPhoneNumbers = jsonText(row.virtual_phone_numbers);
   entity.operations = jsonText(row.operations);
   entity.rawJson = rawJson(row);
+  return entity;
+}
+
+function statusSeconds(stats: unknown, key: string): number {
+  if (!stats || typeof stats !== 'object') return 0;
+  const value = (stats as UisRow)[key];
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0;
+}
+
+export function employeeStatusStatToEntity(
+  row: UisRow,
+  statDate: string,
+): UisEmployeeStatusStatEntity | null {
+  const employeeId = text(row, 'id');
+  if (!employeeId) return null;
+
+  const entity = new UisEmployeeStatusStatEntity();
+  entity.uisId = `${employeeId}:${statDate}`;
+  entity.employeeId = employeeId;
+  entity.statDate = statDate;
+  entity.fullName = text(row, 'full_name');
+  entity.availableSeconds = statusSeconds(row.status_stats, 'available');
+  entity.breakSeconds = statusSeconds(row.status_stats, 'break');
+  entity.doNotDisturbSeconds = statusSeconds(row.status_stats, 'do_not_disturb');
+  entity.notAtWorkplaceSeconds = statusSeconds(row.status_stats, 'not_at_workplace');
+  entity.notAtWorkSeconds = statusSeconds(row.status_stats, 'not_at_work');
+  entity.autoOutCallSeconds = statusSeconds(row.status_stats, 'auto_out_call');
+  entity.unknownSeconds = statusSeconds(row.status_stats, 'unknown');
+  entity.groups = jsonText(row.groups);
+  entity.statusStats = jsonText(row.status_stats);
   return entity;
 }

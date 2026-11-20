@@ -12,16 +12,25 @@ import {
   UisStatusEntity,
   UisVirtualNumberEntity,
 } from './entity/uis-directory.entity';
+import { UisEmployeeStatusStatEntity } from './entity/uis-employee-status-stat.entity';
 import { UisSyncStateEntity, UisSyncType } from './entity/uis-sync-state.entity';
 import { UIS_CALL_FIELDS, UIS_CALL_LEG_FIELDS, UisClient, UisRow } from './uis-client';
 import { UisApiError } from './uis-api.error';
-import { formatUisDateTime, reportWindows } from './uis-date';
+import {
+  dayKeysFrom,
+  formatUisDateTime,
+  reportWindows,
+  shiftDayKey,
+  vladivostokDayBounds,
+  vladivostokDayKey,
+} from './uis-date';
 import {
   callLegRowToEntity,
   callRowToEntity,
   employeeGroupRowToEntity,
   employeePositionRowToEntity,
   employeeRowToEntity,
+  employeeStatusStatToEntity,
   scenarioRowToEntity,
   sipLineRowToEntity,
   statusRowToEntity,
@@ -29,6 +38,7 @@ import {
 } from './uis-sync.mapper';
 
 const INITIAL_LOOKBACK_MONTHS = 3;
+const SYNC_OVERLAP_MS = 30 * 60 * 1000;
 const SQLITE_MAX_VARIABLES = 999;
 const UIS_UPSERT_BATCH_SIZE = Math.floor(SQLITE_MAX_VARIABLES / 40);
 
@@ -36,7 +46,10 @@ function isUniqueViolation(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
   const candidate = error as { code?: string; message?: string; driverError?: { code?: string } };
   const code = candidate.driverError?.code ?? candidate.code;
-  return code === 'SQLITE_CONSTRAINT' || (candidate.message?.includes('UNIQUE constraint failed') ?? false);
+  return (
+    code === 'SQLITE_CONSTRAINT' ||
+    (candidate.message?.includes('UNIQUE constraint failed') ?? false)
+  );
 }
 
 async function upsertInChunks<T extends object>(
@@ -63,6 +76,7 @@ export class UisSyncService {
     private readonly sipLineRepository: Repository<UisSipLineEntity>,
     private readonly virtualNumberRepository: Repository<UisVirtualNumberEntity>,
     private readonly scenarioRepository: Repository<UisScenarioEntity>,
+    private readonly employeeStatusRepository: Repository<UisEmployeeStatusStatEntity>,
     private readonly syncStateRepository: Repository<UisSyncStateEntity>,
   ) {}
 
@@ -93,6 +107,7 @@ export class UisSyncService {
       UIS_CALL_LEG_FIELDS,
       (row) => callLegRowToEntity(row),
     );
+    await this.syncEmployeeStatus();
   }
 
   private async syncDirectories(): Promise<void> {
@@ -150,7 +165,7 @@ export class UisSyncService {
   ): Promise<void> {
     const state = await this.getOrCreateSyncState(syncType);
     const till = new Date();
-    const from = state.lastSyncedTo ?? new Date(toIsoPeriodStartMonthsAgo(INITIAL_LOOKBACK_MONTHS));
+    const from = this.syncFrom(state.lastSyncedTo);
     const windows = reportWindows(from, till);
     if (windows.length === 0) return;
 
@@ -169,6 +184,36 @@ export class UisSyncService {
         `[UIS] ${method}: ${entities.length}, ${formatUisDateTime(window.from)} — ${formatUisDateTime(window.till)}`,
       );
     }
+  }
+
+  private async syncEmployeeStatus(): Promise<void> {
+    const state = await this.getOrCreateSyncState(UisSyncType.EmployeeStatus);
+    const today = vladivostokDayKey(new Date());
+    const start = vladivostokDayKey(this.syncFrom(state.lastSyncedTo));
+
+    for (const day of dayKeysFrom(start, today)) {
+      const bounds = vladivostokDayBounds(day);
+      const rows = await this.client.listReport('get.employee_stat', bounds.from, bounds.till);
+      const entities = rows.flatMap((row) => {
+        const entity = employeeStatusStatToEntity(row, day);
+        return entity ? [entity] : [];
+      });
+      if (entities.length > 0) {
+        await upsertInChunks(this.employeeStatusRepository, entities, ['uisId']);
+      }
+      if (day < today) {
+        await this.updateSyncState(
+          UisSyncType.EmployeeStatus,
+          vladivostokDayBounds(shiftDayKey(day, 1)).from,
+        );
+      }
+      console.log(`[UIS] get.employee_stat: ${entities.length}, ${day}`);
+    }
+  }
+
+  private syncFrom(lastSyncedTo: Date | null): Date {
+    if (!lastSyncedTo) return new Date(toIsoPeriodStartMonthsAgo(INITIAL_LOOKBACK_MONTHS));
+    return new Date(lastSyncedTo.getTime() - SYNC_OVERLAP_MS);
   }
 
   private repositoryFor(syncType: UisSyncType): Repository<UisCallEntity | UisCallLegEntity> {

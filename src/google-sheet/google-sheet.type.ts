@@ -243,6 +243,7 @@ export enum UisSheetName {
   SipLines = 'SIP',
   Numbers = 'Номера',
   Scenarios = 'Сценарии',
+  EmployeeStatus = 'Время в статусах',
 }
 
 export enum UisCallsColumn {
@@ -317,6 +318,19 @@ export enum UisScenariosColumn {
   Numbers = 'Номера',
 }
 
+export enum UisEmployeeStatusColumn {
+  Date = 'Дата (UTC+10)',
+  Employee = 'Сотрудник',
+  Groups = 'Группы',
+  Available = 'Доступен',
+  Break = 'Перерыв',
+  DoNotDisturb = 'Не беспокоить',
+  NotAtWorkplace = 'Нет на месте',
+  NotAtWork = 'Нет на работе',
+  AutoOutCall = 'Исходящий обзвон',
+  Unknown = 'Неизвестно',
+}
+
 export type UisSheetColumnsMap = {
   [UisSheetName.Calls]: UisCallsColumn;
   [UisSheetName.CallLegs]: UisCallLegsColumn;
@@ -325,6 +339,7 @@ export type UisSheetColumnsMap = {
   [UisSheetName.SipLines]: UisSipLinesColumn;
   [UisSheetName.Numbers]: UisNumbersColumn;
   [UisSheetName.Scenarios]: UisScenariosColumn;
+  [UisSheetName.EmployeeStatus]: UisEmployeeStatusColumn;
 };
 
 export const UIS_SHEET_COLUMN_ORDER: {
@@ -391,6 +406,18 @@ export const UIS_SHEET_COLUMN_ORDER: {
     UisScenariosColumn.Id,
     UisScenariosColumn.Name,
     UisScenariosColumn.Numbers,
+  ],
+  [UisSheetName.EmployeeStatus]: [
+    UisEmployeeStatusColumn.Date,
+    UisEmployeeStatusColumn.Employee,
+    UisEmployeeStatusColumn.Groups,
+    UisEmployeeStatusColumn.Available,
+    UisEmployeeStatusColumn.Break,
+    UisEmployeeStatusColumn.DoNotDisturb,
+    UisEmployeeStatusColumn.NotAtWorkplace,
+    UisEmployeeStatusColumn.NotAtWork,
+    UisEmployeeStatusColumn.AutoOutCall,
+    UisEmployeeStatusColumn.Unknown,
   ],
 };
 

@@ -12,6 +12,7 @@ export enum UisSyncType {
   Calls = 'calls',
   CallLegs = 'call_legs',
   Directories = 'directories',
+  EmployeeStatus = 'employee_status',
 }
 
 @Entity('uis_sync_state')

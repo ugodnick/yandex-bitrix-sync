@@ -41,6 +41,7 @@ import { UisSyncService } from './uis/uis-sync.service';
 import { UisSheetExportService } from './uis/uis-sheet-export.service';
 import { UisCallEntity } from './uis/entity/uis-call.entity';
 import { UisCallLegEntity } from './uis/entity/uis-call-leg.entity';
+import { UisEmployeeStatusStatEntity } from './uis/entity/uis-employee-status-stat.entity';
 import {
   UisEmployeeEntity,
   UisEmployeeGroupEntity,
@@ -188,7 +189,7 @@ function initServices(database: DataSource): void {
         eatSpreadsheetId: config.googleSheetsEatSheetId,
         cargoSpreadsheetId: config.googleSheetsCargoSheetId,
         bitrixSpreadsheetId: config.googleSheetsBitrixSheetId,
-        uisSpreadsheetId: config.googleSheetsUisSheetId ?? '',
+        uisSpreadsheetId: config.googleSheetsUisSheetId,
       }),
   );
   const uisAccessToken = config.uisAccessToken;
@@ -200,6 +201,7 @@ function initServices(database: DataSource): void {
     const uisSipLineRepository = database.getRepository(UisSipLineEntity);
     const uisVirtualNumberRepository = database.getRepository(UisVirtualNumberEntity);
     const uisScenarioRepository = database.getRepository(UisScenarioEntity);
+    const uisEmployeeStatusRepository = database.getRepository(UisEmployeeStatusStatEntity);
 
     container.add(
       UisSyncService,
@@ -215,25 +217,25 @@ function initServices(database: DataSource): void {
           uisSipLineRepository,
           uisVirtualNumberRepository,
           uisScenarioRepository,
+          uisEmployeeStatusRepository,
           database.getRepository(UisSyncStateEntity),
         ),
     );
-    if (config.googleSheetsUisSheetId) {
-      container.add(
-        UisSheetExportService,
-        () =>
-          new UisSheetExportService(
-            container.get(GoogleSheetsAPIService),
-            uisCallRepository,
-            uisCallLegRepository,
-            uisEmployeeRepository,
-            uisEmployeeGroupRepository,
-            uisSipLineRepository,
-            uisVirtualNumberRepository,
-            uisScenarioRepository,
-          ),
-      );
-    }
+    container.add(
+      UisSheetExportService,
+      () =>
+        new UisSheetExportService(
+          container.get(GoogleSheetsAPIService),
+          uisCallRepository,
+          uisCallLegRepository,
+          uisEmployeeRepository,
+          uisEmployeeGroupRepository,
+          uisSipLineRepository,
+          uisVirtualNumberRepository,
+          uisScenarioRepository,
+          uisEmployeeStatusRepository,
+        ),
+    );
   }
   container.add(
     YandexFleetOrderService,
@@ -290,7 +292,7 @@ function scheduleGoogleSheetExport() {
         const bitrixExportService = container.get(BitrixSheetExportService);
         await yandexExportService.exportToGoogleSheets();
         await bitrixExportService.exportToGoogleSheets();
-        if (config.uisAccessToken && config.googleSheetsUisSheetId) {
+        if (config.uisAccessToken) {
           await container.get(UisSheetExportService).exportToGoogleSheets();
         }
       }),

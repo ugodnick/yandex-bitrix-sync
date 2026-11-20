@@ -32,6 +32,34 @@ export function parseUisDateTime(value: unknown): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+export function vladivostokDayKey(date: Date): string {
+  return formatUisDateTime(date).slice(0, 10);
+}
+
+export function shiftDayKey(dayKey: string, days: number): string {
+  const [year, month, day] = dayKey.split('-').map(Number);
+  const shifted = new Date(Date.UTC(year, month - 1, day + days));
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`;
+}
+
+export function dayKeysFrom(startKey: string, endKey: string): string[] {
+  const keys: string[] = [];
+  let cursor = startKey;
+  while (cursor <= endKey) {
+    keys.push(cursor);
+    cursor = shiftDayKey(cursor, 1);
+  }
+  return keys;
+}
+
+export function vladivostokDayBounds(dayKey: string): { from: Date; till: Date } {
+  return {
+    from: new Date(`${dayKey}T00:00:00+10:00`),
+    till: new Date(`${dayKey}T23:59:59+10:00`),
+  };
+}
+
 export function reportWindows(from: Date, till: Date): Array<{ from: Date; till: Date }> {
   if (till.getTime() <= from.getTime()) return [];
 
